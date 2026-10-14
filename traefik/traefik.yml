@@ -1,0 +1,30 @@
+# Configuración estática de Traefik v3 (local). El dominio sale de BASE_DOMAIN (env del contenedor).
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+entryPoints:
+  web:
+    address: ":80"
+  traefik:
+    address: ":8080"
+
+api:
+  dashboard: true
+  insecure: true   # dashboard en :8080, solo local (en prod está deshabilitado)
+
+ping:
+  entryPoint: traefik
+
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+log:
+  level: INFO
+
+accessLog:
+  format: json
+  filters:
+    statusCodes: ["400-599"]   # solo errores; el resto sería ruido en local

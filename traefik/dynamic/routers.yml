@@ -1,0 +1,156 @@
+# Enrutamiento por Host + PathPrefix (catalogo-servicios.md §4). Dominio: BASE_DOMAIN.
+http:
+  routers:
+    # ---- Bloqueos (prioridad máxima) -----------------------------------------
+    api-internal-block:
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && (PathPrefix(`/internal`) || PathPrefix(`/api/v1/auth/service-token`))'
+      priority: 10000
+      entryPoints: [web]
+      middlewares: [deny-all]
+      service: noop@internal
+
+    # ---- identity-service:7001 -----------------------------------------------
+    identity-auth:
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/api/v1/auth`)'
+      priority: 200
+      entryPoints: [web]
+      middlewares: [api-auth-chain]
+      service: identity
+    identity:
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && (PathPrefix(`/api/v1/users`) || PathPrefix(`/api/v1/universities`) || PathPrefix(`/.well-known`))'
+      priority: 100
+      entryPoints: [web]
+      middlewares: [api-chain]
+      service: identity
+
+    # ---- social-service:7002 ---------------------------------------------------
+    social:
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && (PathPrefix(`/api/v1/profiles`) || PathPrefix(`/api/v1/posts`) || PathPrefix(`/api/v1/feed`) || PathPrefix(`/api/v1/groups`) || PathPrefix(`/api/v1/follows`) || PathPrefix(`/api/v1/reports`))'
+      priority: 100
+      entryPoints: [web]
+      middlewares: [api-chain]
+      service: social
+
+    media:
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/api/v1/media`)'
+      priority: 100
+      entryPoints: [web]
+      middlewares: [api-chain]
+      service: media
+
+    events:
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && (PathPrefix(`/api/v1/events`) || PathPrefix(`/api/v1/registrations`))'
+      priority: 100
+      entryPoints: [web]
+      middlewares: [api-chain]
+      service: events
+
+    wallet:
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/api/v1/wallet`)'
+      priority: 100
+      entryPoints: [web]
+      middlewares: [api-chain]
+      service: wallet
+
+    ticketing:
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/api/v1/tickets`)'
+      priority: 100
+      entryPoints: [web]
+      middlewares: [api-chain]
+      service: ticketing
+
+    notification:
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && (PathPrefix(`/api/v1/notifications`) || PathPrefix(`/api/v1/devices`))'
+      priority: 100
+      entryPoints: [web]
+      middlewares: [api-chain]
+      service: notification
+
+    # insights-service es de la fase 2: la ruta existe (catálogo §4) y responde 502 hasta que el servicio exista.
+    insights:
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && (PathPrefix(`/api/v1/insights`) || PathPrefix(`/mcp`))'
+      priority: 100
+      entryPoints: [web]
+      middlewares: [api-chain]
+      service: insights
+
+    # GraphQL: HTTP + WebSocket (graphql-ws). Sin compress para no interferir con el upgrade.
+    graphql:
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/graphql`)'
+      priority: 100
+      entryPoints: [web]
+      middlewares: [cors, ratelimit-default, secure-headers]
+      service: admin-gateway
+
+    # ---- UIs de operación ---------------------------------------------------------
+    n8n:
+      rule: 'Host(`n8n.{{ env "BASE_DOMAIN" }}`)'
+      entryPoints: [web]
+      service: n8n
+    mailpit:
+      rule: 'Host(`mail.{{ env "BASE_DOMAIN" }}`)'
+      entryPoints: [web]
+      service: mailpit
+    rabbitmq:
+      rule: 'Host(`rabbit.{{ env "BASE_DOMAIN" }}`)'
+      entryPoints: [web]
+      service: rabbitmq
+    grafana:
+      rule: 'Host(`grafana.{{ env "BASE_DOMAIN" }}`)'
+      entryPoints: [web]
+      service: grafana
+    minio-console:
+      rule: 'Host(`minio.{{ env "BASE_DOMAIN" }}`)'
+      entryPoints: [web]
+      service: minio-console
+    # URLs prefirmadas (MinIO): el navegador/emulador las abre con este host.
+    s3:
+      rule: 'Host(`s3.{{ env "BASE_DOMAIN" }}`)'
+      entryPoints: [web]
+      service: minio
+
+    # ---- Frontends (dev servers en el host: pnpm dev) -----------------------------------
+    landing:
+      rule: 'Host(`{{ env "BASE_DOMAIN" }}`) || Host(`www.{{ env "BASE_DOMAIN" }}`)'
+      entryPoints: [web]
+      service: landing
+    app:
+      rule: 'Host(`app.{{ env "BASE_DOMAIN" }}`)'
+      entryPoints: [web]
+      service: app
+    admin-shell:
+      rule: 'Host(`admin.{{ env "BASE_DOMAIN" }}`)'
+      entryPoints: [web]
+      service: admin-shell
+    mfe-moderation:
+      rule: 'Host(`mfe.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/moderation`)'
+      entryPoints: [web]
+      middlewares: [cors]
+      service: mfe-moderation
+    mfe-insights:
+      rule: 'Host(`mfe.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/insights`)'
+      entryPoints: [web]
+      middlewares: [cors]
+      service: mfe-insights
+
+  services:
+    identity:      { loadBalancer: { servers: [ { url: "http://identity-service:7001" } ] } }
+    social:        { loadBalancer: { servers: [ { url: "http://social-service:7002" } ] } }
+    media:         { loadBalancer: { servers: [ { url: "http://media-service:7003" } ] } }
+    events:        { loadBalancer: { servers: [ { url: "http://events-service:7004" } ] } }
+    wallet:        { loadBalancer: { servers: [ { url: "http://wallet-service:7005" } ] } }
+    ticketing:     { loadBalancer: { servers: [ { url: "http://ticketing-service:7006" } ] } }
+    notification:  { loadBalancer: { servers: [ { url: "http://notification-service:7007" } ] } }
+    insights:      { loadBalancer: { servers: [ { url: "http://insights-service:7008" } ] } }
+    admin-gateway: { loadBalancer: { servers: [ { url: "http://admin-gateway:7010" } ] } }
+    n8n:           { loadBalancer: { servers: [ { url: "http://n8n:5678" } ] } }
+    mailpit:       { loadBalancer: { servers: [ { url: "http://mailpit:8025" } ] } }
+    rabbitmq:      { loadBalancer: { servers: [ { url: "http://rabbitmq:15672" } ] } }
+    grafana:       { loadBalancer: { servers: [ { url: "http://lgtm:3000" } ] } }
+    minio:         { loadBalancer: { servers: [ { url: "http://minio:9000" } ] } }
+    minio-console: { loadBalancer: { servers: [ { url: "http://minio:9001" } ] } }
+    landing:       { loadBalancer: { servers: [ { url: "http://host.docker.internal:3000" } ] } }
+    app:           { loadBalancer: { servers: [ { url: "http://host.docker.internal:8081" } ] } }
+    admin-shell:   { loadBalancer: { servers: [ { url: "http://host.docker.internal:3001" } ] } }
+    mfe-moderation: { loadBalancer: { servers: [ { url: "http://host.docker.internal:4201" } ] } }
+    mfe-insights:  { loadBalancer: { servers: [ { url: "http://host.docker.internal:4301" } ] } }

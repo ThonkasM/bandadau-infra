@@ -1,0 +1,737 @@
+# =============================================================================
+# Bandada U — entorno local (fase 1). Perfiles:
+#   infra          traefik, postgres, mongo(+keyfile,+init rs0), dynamodb-local(+init), rabbitmq,
+#                  minio(+init), mailpit, n8n
+#   services       los 8 servicios de la fase 1 (+ wallet-worker/relay, notification-worker/relay)
+#   observability  grafana/otel-lgtm (OFF por defecto: `make up-obs`)
+#   llm            placeholder de la fase 2 (ollama)
+# Variables: ./.env (copia de .env.example). Contrato: bandadau-docs/docs/06-plan/fase-1-alcance-y-contrato-local.md
+# =============================================================================
+name: bandada
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-base: &base
+  restart: unless-stopped
+  logging: *logging
+  networks: [bandada]
+  init: true
+
+# ---- Variables comunes a todos los servicios backend --------------------------------------------
+x-service-env: &service-env
+  TZ: ${TZ:-America/La_Paz}
+  RABBITMQ_URL: ${RABBITMQ_URL:-amqp://bandada:bandada@rabbitmq:5672}
+  IDENTITY_URL: http://identity-service:7001
+  JWKS_URL: http://identity-service:7001/.well-known/jwks.json
+  JWT_ISSUER: ${JWT_ISSUER:-http://api.bandada.localhost}
+  IDEMPOTENCY_TABLE: ${IDEMPOTENCY_TABLE:-bandada-idempotency}
+  DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+  AWS_REGION: ${AWS_REGION:-us-east-1}
+  AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
+  DEFAULT_LOCALE: ${DEFAULT_LOCALE:-es}
+  SUPPORTED_LOCALES: ${SUPPORTED_LOCALES:-es,en}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001,http://localhost:4201,http://localhost:8081}
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://lgtm:4318}
+  OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-true}
+  OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-deployment.environment=local}
+
+x-java-env: &java-env
+  JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=60 -XX:+ExitOnOutOfMemoryError
+  SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+  APP_ENV: ${APP_ENV:-local}
+
+x-node-env: &node-env
+  NODE_ENV: ${NODE_ENV:-development}
+  APP_ENV: ${APP_ENV:-local}
+  NODE_OPTIONS: --max-old-space-size=192
+
+x-laravel-env: &laravel-env
+  APP_ENV: ${APP_ENV:-local}
+  APP_DEBUG: "false"
+  APP_LOCALE: ${DEFAULT_LOCALE:-es}
+  APP_FALLBACK_LOCALE: ${DEFAULT_LOCALE:-es}
+  LOG_CHANNEL: stderr
+
+x-healthcheck-java: &hc-java
+  interval: 10s
+  timeout: 5s
+  retries: 6
+  start_period: 60s
+x-healthcheck-fast: &hc-fast
+  interval: 10s
+  timeout: 5s
+  retries: 6
+  start_period: 20s
+
+services:
+  # ===========================================================================
+  # Perfil infra
+  # ===========================================================================
+  traefik:
+    <<: *base
+    image: traefik:v3.7.14
+    profiles: [infra]
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${TRAEFIK_DASHBOARD_PORT:-8080}:8080"
+    environment:
+      BASE_DOMAIN: ${BASE_DOMAIN:-bandada.localhost}
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+    # frontends servidos por `pnpm dev` en el host (landing 3000, shell 3001, mfe 4201/4301, app 8081)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    mem_limit: 128m
+
+  postgres:
+    <<: *base
+    image: postgres:18.6
+    profiles: [infra]
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD:-identity_dev}
+      EVENTS_DB_PASSWORD: ${EVENTS_DB_PASSWORD:-events_dev}
+      WALLET_DB_PASSWORD: ${WALLET_DB_PASSWORD:-wallet_dev}
+      TZ: ${TZ:-America/La_Paz}
+    volumes:
+      # postgres:18 cambió PGDATA a /var/lib/postgresql/18/docker: el volumen se monta en /var/lib/postgresql
+      - postgres-data:/var/lib/postgresql
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    mem_limit: 384m
+
+  # mongo:8.0.19 FIJO: 8.0.21+ (y 8.3) abortan en kernels Linux >= 6.19 (SERVER-121912), p. ej. Docker Desktop reciente.
+  mongo-keyfile:
+    image: mongo:8.0.19
+    profiles: [infra]
+    restart: "no"
+    logging: *logging
+    networks: [bandada]
+    user: root
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        set -e
+        [ -s /keyfile/key ] || head -c 756 /dev/urandom | base64 | tr -d '\n' > /keyfile/key
+        chown 999:999 /keyfile/key && chmod 400 /keyfile/key
+        echo "mongo keyfile listo"
+    volumes:
+      - mongo-keyfile:/keyfile
+
+  mongo:
+    <<: *base
+    image: mongo:8.0.19
+    profiles: [infra]
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--keyFile", "/etc/mongo-keyfile/key", "--wiredTigerCacheSizeGB", "0.25"]
+    ports:
+      - "127.0.0.1:${MONGO_PORT:-27017}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-mongo_dev}
+    volumes:
+      - mongo-data:/data/db
+      - mongo-keyfile:/etc/mongo-keyfile:ro
+    depends_on:
+      mongo-keyfile:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet -u \"$${MONGO_INITDB_ROOT_USERNAME}\" -p \"$${MONGO_INITDB_ROOT_PASSWORD}\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" | grep -q 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+    mem_limit: 512m
+
+  mongo-init:
+    image: mongo:8.0.19
+    profiles: [infra]
+    restart: "no"
+    logging: *logging
+    networks: [bandada]
+    entrypoint: ["bash", "/init/init.sh"]
+    environment:
+      MONGO_ROOT_USER: ${MONGO_ROOT_USER:-root}
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-mongo_dev}
+      SOCIAL_MONGO_PASSWORD: ${SOCIAL_MONGO_PASSWORD:-social_dev}
+      MEDIA_MONGO_PASSWORD: ${MEDIA_MONGO_PASSWORD:-media_dev}
+    volumes:
+      - ./mongo/init:/init:ro
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  dynamodb-local:
+    <<: *base
+    image: amazon/dynamodb-local:3.3.1
+    profiles: [infra]
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/data"]
+    user: root   # el volumen nombrado nace como root; la imagen corre como `dynamodblocal`
+    working_dir: /home/dynamodblocal
+    ports:
+      - "127.0.0.1:${DYNAMODB_PORT:-8000}:8000"
+    volumes:
+      - dynamodb-data:/data
+    healthcheck:
+      # la imagen no trae curl/wget: comprobamos que el puerto acepte conexiones
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8000'"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    mem_limit: 384m
+
+  dynamodb-init:
+    image: amazon/aws-cli:2.38.0
+    profiles: [infra]
+    restart: "no"
+    logging: *logging
+    networks: [bandada]
+    entrypoint: ["bash", "/init/create-tables.sh"]
+    environment:
+      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
+    volumes:
+      - ./dynamodb:/init:ro
+    depends_on:
+      dynamodb-local:
+        condition: service_healthy
+
+  rabbitmq:
+    <<: *base
+    image: rabbitmq:4.2.9-management
+    profiles: [infra]
+    hostname: rabbitmq   # el nombre del nodo (y por tanto sus datos) debe ser estable entre recreaciones
+    ports:
+      - "127.0.0.1:${RABBITMQ_AMQP_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_UI_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/conf.d/20-bandada.conf:ro
+      - ./rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+    mem_limit: 640m
+
+  minio:
+    <<: *base
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    profiles: [infra]
+    command: ["server", "/data", "--console-address", ":9001"]
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_dev_pw}
+      # CORS del API S3 (PUT prefirmado desde la app web y el panel); MinIO no usa CORS por bucket
+      MINIO_API_CORS_ALLOW_ORIGIN: ${CORS_ORIGINS:-http://localhost:8081}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    mem_limit: 256m
+
+  minio-init:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    profiles: [infra]
+    restart: "no"
+    logging: *logging
+    networks: [bandada]
+    entrypoint: ["bash", "/init/init.sh"]
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_dev_pw}
+      MEDIA_S3_ACCESS_KEY: ${MEDIA_S3_ACCESS_KEY:-media-svc}
+      MEDIA_S3_SECRET_KEY: ${MEDIA_S3_SECRET_KEY:-media_svc_dev_pw}
+      INSIGHTS_S3_ACCESS_KEY: ${INSIGHTS_S3_ACCESS_KEY:-insights-svc}
+      INSIGHTS_S3_SECRET_KEY: ${INSIGHTS_S3_SECRET_KEY:-insights_svc_dev_pw}
+    volumes:
+      - ./minio:/init:ro
+    depends_on:
+      minio:
+        condition: service_healthy
+
+  mailpit:
+    <<: *base
+    image: axllent/mailpit:v1.31.5
+    profiles: [infra]
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+      MP_MAX_MESSAGES: "500"
+      MP_DATABASE: /data/mailpit.db
+      TZ: ${TZ:-America/La_Paz}
+    volumes:
+      - mailpit-data:/data
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    mem_limit: 128m
+
+  n8n:
+    <<: *base
+    image: n8nio/n8n:2.43.5
+    profiles: [infra]
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    environment:
+      N8N_HOST: n8n.${BASE_DOMAIN:-bandada.localhost}
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://n8n.${BASE_DOMAIN:-bandada.localhost}/
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-dev-n8n-key-32-chars-xxxxxxxxxxxx}
+      N8N_SECURE_COOKIE: "false"           # local sin TLS
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-America/La_Paz}
+      TZ: ${TZ:-America/La_Paz}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: ${N8N_BLOCK_ENV_ACCESS_IN_NODE:-false}
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      DB_TYPE: sqlite                      # SQLite propia en volumen (ADR-0016)
+      # credenciales de los workflows (fase 2): solo variables, nunca en el JSON
+      RABBITMQ_N8N_URL: amqp://n8n:${RABBITMQ_N8N_PASSWORD:-n8n_dev}@rabbitmq:5672
+      N8N_SERVICE_CLIENT_ID: n8n
+      N8N_SERVICE_CLIENT_SECRET: ${N8N_SERVICE_CLIENT_SECRET:-dev-secret-n8n}
+      BANDADA_API_URL: ${BANDADA_API_URL:-http://api.bandada.localhost/api/v1}
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_STAFF_CHAT_ID: ${TELEGRAM_STAFF_CHAT_ID:-}
+    volumes:
+      - n8n-data:/home/node/.n8n
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5678/healthz | grep -q ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    mem_limit: 768m
+
+  # ===========================================================================
+  # Perfil services  (build desde los repos hermanos; las imágenes las escriben los dueños de cada servicio)
+  # ===========================================================================
+  identity-service:
+    <<: *base
+    image: bandada/identity-service:${IMAGE_TAG:-local}
+    profiles: [services]
+    build:
+      context: ../bandadau-backend/services/identity-service
+    ports:
+      - "${IDENTITY_HOST_PORT:-7001}:7001"
+    environment:
+      <<: [*service-env, *java-env]
+      PORT: "7001"
+      OTEL_SERVICE_NAME: identity-service
+      DATABASE_URL: jdbc:postgresql://postgres:5432/identity_db
+      DATABASE_USER: identity
+      DATABASE_PASSWORD: ${IDENTITY_DB_PASSWORD:-identity_dev}
+      JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH:-/run/secrets/jwt-private.pem}
+      JWT_KEY_ID: ${JWT_KEY_ID:-dev-2026-10}
+      ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-PT15M}
+      REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL:-P30D}
+      HANDOFF_CODE_TTL: ${HANDOFF_CODE_TTL:-PT60S}
+      APP_BASE_URL: ${APP_BASE_URL:-http://app.bandada.localhost}
+      ADMIN_BASE_URL: ${ADMIN_BASE_URL:-http://admin.bandada.localhost}
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      MAIL_FROM: ${MAIL_FROM:-no-reply@bandada.localhost}
+      SERVICE_CLIENTS: ${SERVICE_CLIENTS}
+    volumes:
+      # si no hay llave, identity genera el par RS256 aquí (montaje de lectura/escritura); `make keys` la pre-genera
+      - ./secrets:/run/secrets
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      mailpit: { condition: service_healthy }
+    healthcheck:
+      <<: *hc-java
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7001/health/ready >/dev/null 2>&1 || curl -fsS http://127.0.0.1:7001/health/ready >/dev/null"]
+    mem_limit: 512m
+
+  social-service:
+    <<: *base
+    image: bandada/social-service:${IMAGE_TAG:-local}
+    profiles: [services]
+    build:
+      context: ../bandadau-backend
+      dockerfile: services/social-service/Dockerfile
+      additional_contexts:
+        shared: ../bandadau-shared
+    ports:
+      - "${SOCIAL_HOST_PORT:-7002}:7002"
+    environment:
+      <<: [*service-env, *node-env]
+      PORT: "7002"
+      OTEL_SERVICE_NAME: social-service
+      MONGODB_URI: mongodb://social:${SOCIAL_MONGO_PASSWORD:-social_dev}@mongo:27017/social?replicaSet=rs0&authSource=social
+      MEDIA_SERVICE_URL: http://media-service:7003
+      SERVICE_CLIENT_ID: social-service
+      SERVICE_CLIENT_SECRET: ${SOCIAL_SERVICE_CLIENT_SECRET:-dev-secret-social}
+      FEED_MODEL_PATH: ${FEED_MODEL_PATH:-./models/feed-ranker/coefficients.json}
+      REPORT_HIDE_THRESHOLD: ${REPORT_HIDE_THRESHOLD:-3}
+    depends_on:
+      mongo-init: { condition: service_completed_successfully }
+      rabbitmq: { condition: service_healthy }
+      dynamodb-init: { condition: service_completed_successfully }
+    healthcheck:
+      <<: *hc-fast
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7002/health/ready >/dev/null 2>&1 || curl -fsS http://127.0.0.1:7002/health/ready >/dev/null"]
+    mem_limit: 256m
+
+  media-service:
+    <<: *base
+    image: bandada/media-service:${IMAGE_TAG:-local}
+    profiles: [services]
+    build:
+      context: ../bandadau-backend
+      dockerfile: services/media-service/Dockerfile
+      additional_contexts:
+        shared: ../bandadau-shared
+    ports:
+      - "${MEDIA_HOST_PORT:-7003}:7003"
+    environment:
+      <<: [*service-env, *node-env]
+      PORT: "7003"
+      OTEL_SERVICE_NAME: media-service
+      MONGODB_URI: mongodb://media:${MEDIA_MONGO_PASSWORD:-media_dev}@mongo:27017/media?replicaSet=rs0&authSource=media
+      MODERATION_MODE: ${MODERATION_MODE:-allow-all}
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
+      S3_FORCE_PATH_STYLE: "true"
+      S3_ACCESS_KEY_ID: ${MEDIA_S3_ACCESS_KEY:-media-svc}
+      S3_SECRET_ACCESS_KEY: ${MEDIA_S3_SECRET_KEY:-media_svc_dev_pw}
+      S3_BUCKET_MEDIA: ${S3_BUCKET_MEDIA:-bandada-media}
+      S3_BUCKET_MODELS: ${S3_BUCKET_MODELS:-bandada-models}
+      UPLOAD_URL_TTL_SECONDS: ${UPLOAD_URL_TTL_SECONDS:-300}
+      MAX_IMAGE_BYTES: ${MAX_IMAGE_BYTES:-10485760}
+      MAX_VIDEO_BYTES: ${MAX_VIDEO_BYTES:-52428800}
+      MODEL_NSFW_VERSION: ${MODEL_NSFW_VERSION:-1.0.0}
+      MODEL_VIOLENCE_VERSION: ${MODEL_VIOLENCE_VERSION:-1.0.0}
+      MODEL_CLIP_VERSION: ${MODEL_CLIP_VERSION:-1.0.0}
+      MODERATION_BLOCK_THRESHOLD: ${MODERATION_BLOCK_THRESHOLD:-0.85}
+      MODERATION_REVIEW_THRESHOLD: ${MODERATION_REVIEW_THRESHOLD:-0.5}
+      VIDEO_FRAME_INTERVAL_SECONDS: ${VIDEO_FRAME_INTERVAL_SECONDS:-2}
+      VIDEO_MAX_FRAMES: ${VIDEO_MAX_FRAMES:-30}
+    depends_on:
+      mongo-init: { condition: service_completed_successfully }
+      minio-init: { condition: service_completed_successfully }
+      rabbitmq: { condition: service_healthy }
+      dynamodb-init: { condition: service_completed_successfully }
+    healthcheck:
+      <<: *hc-fast
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7003/health/ready >/dev/null 2>&1 || curl -fsS http://127.0.0.1:7003/health/ready >/dev/null"]
+    mem_limit: 384m   # (+ ffmpeg/onnx en la fase 2)
+
+  events-service:
+    <<: *base
+    image: bandada/events-service:${IMAGE_TAG:-local}
+    profiles: [services]
+    build:
+      context: ../bandadau-backend/services/events-service
+    ports:
+      - "${EVENTS_HOST_PORT:-7004}:7004"
+    environment:
+      <<: [*service-env, *java-env]
+      PORT: "7004"
+      OTEL_SERVICE_NAME: events-service
+      DATABASE_URL: jdbc:postgresql://postgres:5432/events_db
+      DATABASE_USER: events
+      DATABASE_PASSWORD: ${EVENTS_DB_PASSWORD:-events_dev}
+      MEDIA_SERVICE_URL: http://media-service:7003
+      SERVICE_CLIENT_ID: events-service
+      SERVICE_CLIENT_SECRET: ${EVENTS_SERVICE_CLIENT_SECRET:-dev-secret-events}
+      SAGA_STEP_TIMEOUT: ${SAGA_STEP_TIMEOUT:-PT30S}
+      SAGA_SCHEDULER_INTERVAL: ${SAGA_SCHEDULER_INTERVAL:-PT5S}
+      SAGA_COMMAND_MAX_RETRIES: ${SAGA_COMMAND_MAX_RETRIES:-3}
+      OUTBOX_RELAY_INTERVAL: ${OUTBOX_RELAY_INTERVAL:-PT1S}
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      dynamodb-init: { condition: service_completed_successfully }
+    healthcheck:
+      <<: *hc-java
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7004/health/ready >/dev/null 2>&1 || curl -fsS http://127.0.0.1:7004/health/ready >/dev/null"]
+    mem_limit: 512m
+
+  wallet-service:
+    <<: *base
+    image: bandada/wallet-service:${IMAGE_TAG:-local}
+    profiles: [services]
+    build:
+      context: ../bandadau-backend/services/wallet-service
+    ports:
+      - "${WALLET_HOST_PORT:-7005}:7005"
+    environment: &wallet-env
+      <<: [*service-env, *laravel-env]
+      APP_PORT: "7005"
+      APP_KEY: ${WALLET_APP_KEY}
+      OTEL_SERVICE_NAME: wallet-service
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: wallet_db
+      DB_USERNAME: wallet
+      DB_PASSWORD: ${WALLET_DB_PASSWORD:-wallet_dev}
+      PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-dev-webhook-secret}
+      PAYMENT_CHECKOUT_BASE_URL: ${PAYMENT_CHECKOUT_BASE_URL:-http://app.bandada.localhost/wallet/checkout}
+      PAYMENT_GATEWAY: simulated
+      SIMULATE_PAYMENT_ENABLED: ${SIMULATE_PAYMENT_ENABLED:-true}
+      PAYMENT_SIMULATOR_ENABLED: ${PAYMENT_SIMULATOR_ENABLED:-true}
+      TOPUP_PACKAGES: ${TOPUP_PACKAGES:-CREDITS_20,CREDITS_50,CREDITS_100}
+      CHAOS_WALLET_DELAY_MS: ${CHAOS_WALLET_DELAY_MS:-0}
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      dynamodb-init: { condition: service_completed_successfully }
+    healthcheck:
+      <<: *hc-fast
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7005/health/ready >/dev/null 2>&1 || curl -fsS http://127.0.0.1:7005/health/ready >/dev/null"]
+    mem_limit: 256m
+
+  wallet-worker:
+    <<: *base
+    image: bandada/wallet-service:${IMAGE_TAG:-local}
+    profiles: [services]
+    command: ${WALLET_WORKER_CMD:-php artisan wallet:consume-commands}
+    environment: *wallet-env
+    depends_on:
+      wallet-service: { condition: service_healthy }
+    healthcheck:   # sin HTTP: comprueba que el proceso artisan siga siendo el PID 1
+      test: ["CMD-SHELL", "grep -qa artisan /proc/1/cmdline"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    mem_limit: 256m
+
+  wallet-relay:
+    <<: *base
+    image: bandada/wallet-service:${IMAGE_TAG:-local}
+    profiles: [services]
+    command: ${WALLET_RELAY_CMD:-php artisan wallet:relay-outbox}
+    environment: *wallet-env
+    depends_on:
+      wallet-service: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "grep -qa artisan /proc/1/cmdline"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    mem_limit: 256m
+
+  ticketing-service:
+    <<: *base
+    image: bandada/ticketing-service:${IMAGE_TAG:-local}
+    profiles: [services]
+    build:
+      context: ../bandadau-backend
+      dockerfile: services/ticketing-service/Dockerfile
+      additional_contexts:
+        shared: ../bandadau-shared
+    ports:
+      - "${TICKETING_HOST_PORT:-7006}:7006"
+    environment:
+      <<: [*service-env, *node-env]
+      PORT: "7006"
+      OTEL_SERVICE_NAME: ticketing-service
+      TICKETING_TABLE: ${TICKETING_TABLE:-bandada-ticketing}
+      EVENTS_SERVICE_URL: http://events-service:7004
+      SERVICE_CLIENT_ID: ticketing-service
+      SERVICE_CLIENT_SECRET: ${TICKETING_SERVICE_CLIENT_SECRET:-dev-secret-ticketing}
+      QR_SIGNING_KEY_PATH: ${QR_SIGNING_KEY_PATH:-/run/secrets/qr-es256.pem}
+      QR_SIGNING_KID: ${QR_SIGNING_KID:-tk-2026-10}
+      QR_KEY_ID: ${QR_KEY_ID:-dev-1}
+      CHAOS_TICKETING_FAIL: ${CHAOS_TICKETING_FAIL:-false}
+    volumes:
+      - ./secrets/qr-es256.pem:/run/secrets/qr-es256.pem:ro
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+      dynamodb-init: { condition: service_completed_successfully }
+    healthcheck:
+      <<: *hc-fast
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7006/health/ready >/dev/null 2>&1 || curl -fsS http://127.0.0.1:7006/health/ready >/dev/null"]
+    mem_limit: 256m
+
+  notification-service:
+    <<: *base
+    image: bandada/notification-service:${IMAGE_TAG:-local}
+    profiles: [services]
+    build:
+      context: ../bandadau-backend/services/notification-service
+    ports:
+      - "${NOTIFICATION_HOST_PORT:-7007}:7007"
+    environment: &notification-env
+      <<: [*service-env, *laravel-env]
+      APP_PORT: "7007"
+      APP_KEY: ${NOTIFICATION_APP_KEY}
+      OTEL_SERVICE_NAME: notification-service
+      NOTIFICATIONS_TABLE: ${NOTIFICATIONS_TABLE:-bandada-notifications}
+      NOTIFICATION_TTL_DAYS: ${NOTIFICATION_TTL_DAYS:-90}
+      MAIL_MAILER: ${MAIL_MAILER:-smtp}
+      MAIL_HOST: mailpit
+      MAIL_PORT: "1025"
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@bandada.localhost}
+      PUSH_ENABLED: ${PUSH_ENABLED:-false}
+      EXPO_PUSH_URL: ${EXPO_PUSH_URL:-https://exp.host/--/api/v2/push/send}
+      EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN:-}
+      APP_DEEP_LINK_BASE: ${APP_DEEP_LINK_BASE:-http://app.bandada.localhost}
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+      dynamodb-init: { condition: service_completed_successfully }
+      mailpit: { condition: service_healthy }
+    healthcheck:
+      <<: *hc-fast
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7007/health/ready >/dev/null 2>&1 || curl -fsS http://127.0.0.1:7007/health/ready >/dev/null"]
+    mem_limit: 256m
+
+  notification-worker:
+    <<: *base
+    image: bandada/notification-service:${IMAGE_TAG:-local}
+    profiles: [services]
+    command: ${NOTIFICATION_WORKER_CMD:-php artisan notifications:consume}
+    environment: *notification-env
+    depends_on:
+      notification-service: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "grep -qa artisan /proc/1/cmdline"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    mem_limit: 256m
+
+  notification-relay:
+    <<: *base
+    image: bandada/notification-service:${IMAGE_TAG:-local}
+    profiles: [services]
+    command: ${NOTIFICATION_RELAY_CMD:-php artisan notifications:relay-outbox}
+    environment: *notification-env
+    depends_on:
+      notification-service: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "grep -qa artisan /proc/1/cmdline"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    mem_limit: 256m
+
+  admin-gateway:
+    <<: *base
+    image: bandada/admin-gateway:${IMAGE_TAG:-local}
+    profiles: [services]
+    build:
+      context: ../bandadau-backend
+      dockerfile: services/admin-gateway/Dockerfile
+      additional_contexts:
+        shared: ../bandadau-shared
+    ports:
+      - "${ADMIN_GATEWAY_HOST_PORT:-7010}:7010"
+    environment:
+      <<: [*service-env, *node-env]
+      PORT: "7010"
+      OTEL_SERVICE_NAME: admin-gateway
+      SOCIAL_SERVICE_URL: http://social-service:7002
+      MEDIA_SERVICE_URL: http://media-service:7003
+      EVENTS_SERVICE_URL: http://events-service:7004
+      WALLET_SERVICE_URL: http://wallet-service:7005
+      TICKETING_SERVICE_URL: http://ticketing-service:7006
+      INSIGHTS_SERVICE_URL: http://insights-service:7008
+      SERVICE_CLIENT_ID: admin-gateway
+      SERVICE_CLIENT_SECRET: ${ADMIN_GATEWAY_SERVICE_CLIENT_SECRET:-dev-secret-admin-gateway}
+      GRAPHQL_MAX_DEPTH: ${GRAPHQL_MAX_DEPTH:-7}
+      GRAPHQL_MAX_COMPLEXITY: ${GRAPHQL_MAX_COMPLEXITY:-1000}
+      GRAPHQL_INTROSPECTION: ${GRAPHQL_INTROSPECTION:-true}
+      HTTP_TIMEOUT_MS: ${HTTP_TIMEOUT_MS:-3000}
+    depends_on:
+      identity-service: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck:
+      <<: *hc-fast
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7010/health/ready >/dev/null 2>&1 || curl -fsS http://127.0.0.1:7010/health/ready >/dev/null"]
+    mem_limit: 256m
+
+  # ===========================================================================
+  # Perfil observability (OFF por defecto)  ·  make up-obs
+  # ===========================================================================
+  lgtm:
+    <<: *base
+    image: grafana/otel-lgtm:0.36.0
+    profiles: [observability]
+    ports:
+      - "${GRAFANA_PORT:-3300}:3000"
+      - "${OTLP_GRPC_PORT:-4317}:4317"
+      - "${OTLP_HTTP_PORT:-4318}:4318"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      TZ: ${TZ:-America/La_Paz}
+    volumes:
+      - lgtm-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    mem_limit: 1536m
+
+  # ===========================================================================
+  # Perfil llm — placeholder de la fase 2 (UC-17/19/20/22). Vacío a propósito en la fase 1.
+  # ===========================================================================
+  # ollama: ...   (se define en la fase 2; ver ia-local-y-offline.md)
+
+networks:
+  bandada:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  mongo-data:
+  mongo-keyfile:
+  dynamodb-data:
+  rabbitmq-data:
+  minio-data:
+  mailpit-data:
+  n8n-data:
+  lgtm-data:

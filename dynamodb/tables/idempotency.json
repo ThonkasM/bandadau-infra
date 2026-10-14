@@ -1,0 +1,10 @@
+{
+  "TableName": "bandada-idempotency",
+  "BillingMode": "PAY_PER_REQUEST",
+  "AttributeDefinitions": [
+    { "AttributeName": "pk", "AttributeType": "S" }
+  ],
+  "KeySchema": [
+    { "AttributeName": "pk", "KeyType": "HASH" }
+  ]
+}

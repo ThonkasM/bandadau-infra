@@ -1,0 +1,5 @@
+# tabla  atributo-TTL  (DynamoDB Local no garantiza el borrado: el código también filtra por expiresAt)
+bandada-idempotency   expiresAt
+bandada-ticketing     expiresAt
+bandada-notifications expiresAt
+bandada-insights      expiresAt

@@ -1,0 +1,840 @@
+{
+  "rabbit_version": "4.2",
+  "users": [
+    {
+      "name": "admin",
+      "password": "__RABBITMQ_ADMIN_PASSWORD__",
+      "tags": "administrator"
+    },
+    {
+      "name": "__RABBITMQ_DEFAULT_USER__",
+      "password": "__RABBITMQ_DEFAULT_PASS__",
+      "tags": ""
+    },
+    {
+      "name": "n8n",
+      "password": "__RABBITMQ_N8N_PASSWORD__",
+      "tags": ""
+    },
+    {
+      "name": "monitor",
+      "password": "__RABBITMQ_MONITOR_PASSWORD__",
+      "tags": "monitoring"
+    }
+  ],
+  "vhosts": [
+    {
+      "name": "/"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "admin",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "__RABBITMQ_DEFAULT_USER__",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "n8n",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "monitor",
+      "vhost": "/",
+      "configure": "^$",
+      "write": "^$",
+      "read": ".*"
+    }
+  ],
+  "topic_permissions": [],
+  "parameters": [],
+  "global_parameters": [],
+  "policies": [
+    {
+      "vhost": "/",
+      "name": "cap-unconsumed",
+      "pattern": "^(n8n\\.automation|insights-service\\.analytics)$",
+      "apply-to": "queues",
+      "definition": {
+        "max-length": 10000,
+        "overflow": "drop-head"
+      },
+      "priority": 0
+    },
+    {
+      "vhost": "/",
+      "name": "cap-dlq",
+      "pattern": "\\.dlq$",
+      "apply-to": "queues",
+      "definition": {
+        "max-length": 10000,
+        "overflow": "drop-head"
+      },
+      "priority": 0
+    }
+  ],
+  "queues": [
+    {
+      "name": "events-service.saga-replies",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "bandada.dlx",
+        "x-dead-letter-routing-key": "events-service.saga-replies",
+        "x-delivery-limit": 10
+      }
+    },
+    {
+      "name": "events-service.saga-replies.retry.5s",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 5000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "events-service.saga-replies"
+      }
+    },
+    {
+      "name": "events-service.saga-replies.retry.30s",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 30000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "events-service.saga-replies"
+      }
+    },
+    {
+      "name": "events-service.saga-replies.retry.5m",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 300000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "events-service.saga-replies"
+      }
+    },
+    {
+      "name": "events-service.saga-replies.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "wallet-service.commands",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "bandada.dlx",
+        "x-dead-letter-routing-key": "wallet-service.commands",
+        "x-delivery-limit": 10
+      }
+    },
+    {
+      "name": "wallet-service.commands.retry.5s",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 5000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "wallet-service.commands"
+      }
+    },
+    {
+      "name": "wallet-service.commands.retry.30s",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 30000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "wallet-service.commands"
+      }
+    },
+    {
+      "name": "wallet-service.commands.retry.5m",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 300000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "wallet-service.commands"
+      }
+    },
+    {
+      "name": "wallet-service.commands.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "ticketing-service.commands",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "bandada.dlx",
+        "x-dead-letter-routing-key": "ticketing-service.commands",
+        "x-delivery-limit": 10
+      }
+    },
+    {
+      "name": "ticketing-service.commands.retry.5s",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 5000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "ticketing-service.commands"
+      }
+    },
+    {
+      "name": "ticketing-service.commands.retry.30s",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 30000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "ticketing-service.commands"
+      }
+    },
+    {
+      "name": "ticketing-service.commands.retry.5m",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 300000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "ticketing-service.commands"
+      }
+    },
+    {
+      "name": "ticketing-service.commands.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "social-service.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "bandada.dlx",
+        "x-dead-letter-routing-key": "social-service.events",
+        "x-delivery-limit": 10
+      }
+    },
+    {
+      "name": "social-service.events.retry.5s",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 5000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "social-service.events"
+      }
+    },
+    {
+      "name": "social-service.events.retry.30s",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 30000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "social-service.events"
+      }
+    },
+    {
+      "name": "social-service.events.retry.5m",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 300000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "social-service.events"
+      }
+    },
+    {
+      "name": "social-service.events.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "media-service.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "bandada.dlx",
+        "x-dead-letter-routing-key": "media-service.events",
+        "x-delivery-limit": 10
+      }
+    },
+    {
+      "name": "media-service.events.retry.5s",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 5000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "media-service.events"
+      }
+    },
+    {
+      "name": "media-service.events.retry.30s",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 30000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "media-service.events"
+      }
+    },
+    {
+      "name": "media-service.events.retry.5m",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 300000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "media-service.events"
+      }
+    },
+    {
+      "name": "media-service.events.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "notification-service.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "bandada.dlx",
+        "x-dead-letter-routing-key": "notification-service.events",
+        "x-delivery-limit": 10
+      }
+    },
+    {
+      "name": "notification-service.events.retry.5s",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 5000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "notification-service.events"
+      }
+    },
+    {
+      "name": "notification-service.events.retry.30s",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 30000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "notification-service.events"
+      }
+    },
+    {
+      "name": "notification-service.events.retry.5m",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 300000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "notification-service.events"
+      }
+    },
+    {
+      "name": "notification-service.events.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "insights-service.analytics",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "bandada.dlx",
+        "x-dead-letter-routing-key": "insights-service.analytics",
+        "x-delivery-limit": 10
+      }
+    },
+    {
+      "name": "insights-service.analytics.retry.5s",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 5000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "insights-service.analytics"
+      }
+    },
+    {
+      "name": "insights-service.analytics.retry.30s",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 30000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "insights-service.analytics"
+      }
+    },
+    {
+      "name": "insights-service.analytics.retry.5m",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 300000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "insights-service.analytics"
+      }
+    },
+    {
+      "name": "insights-service.analytics.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "n8n.automation",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "bandada.dlx",
+        "x-dead-letter-routing-key": "n8n.automation",
+        "x-delivery-limit": 10
+      }
+    },
+    {
+      "name": "n8n.automation.retry.5s",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 5000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "n8n.automation"
+      }
+    },
+    {
+      "name": "n8n.automation.retry.30s",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 30000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "n8n.automation"
+      }
+    },
+    {
+      "name": "n8n.automation.retry.5m",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "classic",
+        "x-message-ttl": 300000,
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "n8n.automation"
+      }
+    },
+    {
+      "name": "n8n.automation.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "bandada.events",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "bandada.commands",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "bandada.dlx",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "events-service.saga-replies",
+      "destination_type": "queue",
+      "routing_key": "bandada.wallet.credits-debited.v1",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "events-service.saga-replies",
+      "destination_type": "queue",
+      "routing_key": "bandada.wallet.credits-debit-failed.v1",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "events-service.saga-replies",
+      "destination_type": "queue",
+      "routing_key": "bandada.wallet.credits-refunded.v1",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "events-service.saga-replies",
+      "destination_type": "queue",
+      "routing_key": "bandada.ticketing.ticket-issued.v1",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "events-service.saga-replies",
+      "destination_type": "queue",
+      "routing_key": "bandada.ticketing.ticket-issue-failed.v1",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "events-service.saga-replies",
+      "destination_type": "queue",
+      "routing_key": "bandada.ticketing.ticket-voided.v1",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "events-service.saga-replies",
+      "destination_type": "queue",
+      "routing_key": "bandada.ticketing.ticket-void-failed.v1",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.dlx",
+      "vhost": "/",
+      "destination": "events-service.saga-replies.dlq",
+      "destination_type": "queue",
+      "routing_key": "events-service.saga-replies",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.commands",
+      "vhost": "/",
+      "destination": "wallet-service.commands",
+      "destination_type": "queue",
+      "routing_key": "bandada.wallet.cmd.#",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.dlx",
+      "vhost": "/",
+      "destination": "wallet-service.commands.dlq",
+      "destination_type": "queue",
+      "routing_key": "wallet-service.commands",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.commands",
+      "vhost": "/",
+      "destination": "ticketing-service.commands",
+      "destination_type": "queue",
+      "routing_key": "bandada.ticketing.cmd.#",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.dlx",
+      "vhost": "/",
+      "destination": "ticketing-service.commands.dlq",
+      "destination_type": "queue",
+      "routing_key": "ticketing-service.commands",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "social-service.events",
+      "destination_type": "queue",
+      "routing_key": "bandada.media.asset.#",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "social-service.events",
+      "destination_type": "queue",
+      "routing_key": "bandada.identity.user.#",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.dlx",
+      "vhost": "/",
+      "destination": "social-service.events.dlq",
+      "destination_type": "queue",
+      "routing_key": "social-service.events",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "media-service.events",
+      "destination_type": "queue",
+      "routing_key": "bandada.social.post.deleted.v1",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.dlx",
+      "vhost": "/",
+      "destination": "media-service.events.dlq",
+      "destination_type": "queue",
+      "routing_key": "media-service.events",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "notification-service.events",
+      "destination_type": "queue",
+      "routing_key": "bandada.events.registration.#",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "notification-service.events",
+      "destination_type": "queue",
+      "routing_key": "bandada.events.event.cancelled.v1",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "notification-service.events",
+      "destination_type": "queue",
+      "routing_key": "bandada.social.#",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "notification-service.events",
+      "destination_type": "queue",
+      "routing_key": "bandada.wallet.topup.#",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "notification-service.events",
+      "destination_type": "queue",
+      "routing_key": "bandada.insights.alert.#",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "notification-service.events",
+      "destination_type": "queue",
+      "routing_key": "bandada.identity.user.registered.v1",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "notification-service.events",
+      "destination_type": "queue",
+      "routing_key": "bandada.identity.user.preferences-changed.v1",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.dlx",
+      "vhost": "/",
+      "destination": "notification-service.events.dlq",
+      "destination_type": "queue",
+      "routing_key": "notification-service.events",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "insights-service.analytics",
+      "destination_type": "queue",
+      "routing_key": "bandada.#",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.dlx",
+      "vhost": "/",
+      "destination": "insights-service.analytics.dlq",
+      "destination_type": "queue",
+      "routing_key": "insights-service.analytics",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "n8n.automation",
+      "destination_type": "queue",
+      "routing_key": "bandada.identity.user.registered.v1",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "n8n.automation",
+      "destination_type": "queue",
+      "routing_key": "bandada.events.registration.confirmed.v1",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "n8n.automation",
+      "destination_type": "queue",
+      "routing_key": "bandada.media.asset.flagged.v1",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "n8n.automation",
+      "destination_type": "queue",
+      "routing_key": "bandada.insights.alert.raised.v1",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.events",
+      "vhost": "/",
+      "destination": "n8n.automation",
+      "destination_type": "queue",
+      "routing_key": "bandada.events.event.published.v1",
+      "arguments": {}
+    },
+    {
+      "source": "bandada.dlx",
+      "vhost": "/",
+      "destination": "n8n.automation.dlq",
+      "destination_type": "queue",
+      "routing_key": "n8n.automation",
+      "arguments": {}
+    }
+  ]
+}
