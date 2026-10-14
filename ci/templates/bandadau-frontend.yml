@@ -1,0 +1,33 @@
+# Plantilla de CI para bandadau-frontend → copiar a bandadau-frontend/.github/workflows/ci.yml
+# lint + test + build (sin despliegue; el despliegue AWS es de una fase posterior).
+name: ci
+on:
+  push: { branches: [main, develop] }
+  pull_request:
+concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: true }
+permissions: { contents: read }
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      # Layout de hermanos: $GITHUB_WORKSPACE/{<este-repo>,bandadau-shared,bandadau-docs} (ADR-0017).
+      # Si los repos son privados, crea el secreto CI_REPOS_TOKEN (PAT con lectura de la organización).
+      - uses: actions/checkout@v4
+        with: { path: bandadau-frontend }
+      - uses: actions/checkout@v4
+        with: { repository: '${{ github.repository_owner }}/bandadau-shared', path: bandadau-shared, token: '${{ secrets.CI_REPOS_TOKEN || github.token }}' }
+      - uses: actions/checkout@v4
+        with: { repository: '${{ github.repository_owner }}/bandadau-docs', path: bandadau-docs, token: '${{ secrets.CI_REPOS_TOKEN || github.token }}' }
+      - uses: pnpm/action-setup@v4
+        with: { package_json_file: bandadau-shared/package.json }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm, cache-dependency-path: '**/pnpm-lock.yaml' }
+      - name: Construir bandadau-shared
+        working-directory: bandadau-shared
+        run: pnpm install --frozen-lockfile && pnpm build
+      - working-directory: bandadau-frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm lint && pnpm typecheck && pnpm test && pnpm i18n:check
+          pnpm build:web

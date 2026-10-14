@@ -1,0 +1,99 @@
+# Plantilla de CI para bandadau-backend → copiar a bandadau-backend/.github/workflows/ci.yml
+# lint + test + build (sin despliegue; el despliegue AWS es de una fase posterior).
+name: ci
+on:
+  push: { branches: [main, develop] }
+  pull_request:
+concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: true }
+permissions: { contents: read }
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: { service: [social-service, media-service, ticketing-service, admin-gateway] }
+    steps:
+      # Layout de hermanos: $GITHUB_WORKSPACE/{<este-repo>,bandadau-shared,bandadau-docs} (ADR-0017).
+      # Si los repos son privados, crea el secreto CI_REPOS_TOKEN (PAT con lectura de la organización).
+      - uses: actions/checkout@v4
+        with: { path: bandadau-backend }
+      - uses: actions/checkout@v4
+        with: { repository: '${{ github.repository_owner }}/bandadau-shared', path: bandadau-shared, token: '${{ secrets.CI_REPOS_TOKEN || github.token }}' }
+      - uses: actions/checkout@v4
+        with: { repository: '${{ github.repository_owner }}/bandadau-docs', path: bandadau-docs, token: '${{ secrets.CI_REPOS_TOKEN || github.token }}' }
+      - uses: pnpm/action-setup@v4
+        with: { package_json_file: bandadau-shared/package.json }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm, cache-dependency-path: '**/pnpm-lock.yaml' }
+      - name: Construir bandadau-shared
+        working-directory: bandadau-shared
+        run: pnpm install --frozen-lockfile && pnpm build
+      - name: ¿Hay código para ${{ matrix.service }}?
+        id: detect
+        run: echo "present=$([ -f bandadau-backend/services/${{ matrix.service }}/package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - if: steps.detect.outputs.present == 'true'
+        working-directory: bandadau-backend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter ${{ matrix.service }} lint
+          pnpm --filter ${{ matrix.service }} typecheck
+          pnpm --filter ${{ matrix.service }} test
+          pnpm --filter ${{ matrix.service }} arch
+          pnpm --filter ${{ matrix.service }} build
+      - if: steps.detect.outputs.present == 'true'
+        uses: docker/setup-buildx-action@v3
+      - name: docker build (contexto = repo, additional context shared)
+        if: steps.detect.outputs.present == 'true'
+        run: |
+          docker buildx build bandadau-backend \
+            -f bandadau-backend/services/${{ matrix.service }}/Dockerfile \
+            --build-context shared=bandadau-shared \
+            -t bandada/${{ matrix.service }}:ci
+
+  java:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: { service: [identity-service, events-service] }
+    steps:
+      - uses: actions/checkout@v4
+      - name: ¿Hay código?
+        id: detect
+        run: echo "present=$([ -x services/${{ matrix.service }}/gradlew ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - if: steps.detect.outputs.present == 'true'
+        uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 25 }
+      - if: steps.detect.outputs.present == 'true'
+        uses: gradle/actions/setup-gradle@v4
+      - if: steps.detect.outputs.present == 'true'
+        working-directory: services/${{ matrix.service }}
+        run: ./gradlew spotlessCheck checkstyleMain build   # build = jar + pruebas (Testcontainers + ArchUnit)
+      - if: steps.detect.outputs.present == 'true'
+        run: docker build services/${{ matrix.service }} -t bandada/${{ matrix.service }}:ci
+
+  php:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: { service: [wallet-service, notification-service] }
+    steps:
+      - uses: actions/checkout@v4
+      - name: ¿Hay código?
+        id: detect
+        run: echo "present=$([ -f services/${{ matrix.service }}/composer.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - if: steps.detect.outputs.present == 'true'
+        uses: shivammathur/setup-php@v2
+        with: { php-version: '8.4', tools: composer, coverage: none }
+      - if: steps.detect.outputs.present == 'true'
+        working-directory: services/${{ matrix.service }}
+        run: |
+          composer install --no-interaction --prefer-dist
+          ./vendor/bin/pint --test
+          ./vendor/bin/phpstan analyse
+          ./vendor/bin/deptrac analyse
+          ./vendor/bin/pest
+      - if: steps.detect.outputs.present == 'true'
+        run: docker build services/${{ matrix.service }} -t bandada/${{ matrix.service }}:ci

@@ -1,0 +1,18 @@
+# Plantilla de CI para bandadau-docs → copiar a bandadau-docs/.github/workflows/ci.yml
+# lint + test + build (sin despliegue; el despliegue AWS es de una fase posterior).
+name: ci
+on:
+  push: { branches: [main, develop] }
+  pull_request:
+concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: true }
+permissions: { contents: read }
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - name: Lint de contratos (Spectral, AsyncAPI, GraphQL) y enlaces
+        run: make contracts-lint && make links

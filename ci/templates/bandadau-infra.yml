@@ -1,0 +1,59 @@
+# Plantilla de CI para bandadau-infra → copiar a bandadau-infra/.github/workflows/ci.yml
+# lint + test + build (sin despliegue; el despliegue AWS es de una fase posterior).
+name: ci
+on:
+  workflow_dispatch:
+  schedule: [{ cron: "0 7 * * 1" }]
+  push: { branches: [main, develop] }
+  pull_request:
+concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: true }
+permissions: { contents: read }
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - name: Configuración válida (compose, sintaxis de scripts y de seed/smoke)
+        run: |
+          cp .env.example .env
+          make validate
+      - uses: ludeeus/action-shellcheck@2.0.0
+        with: { scandir: ./scripts }
+
+  infra:   # perfil infra real: salud, colas, bases, tablas, buckets y rutas de Traefik
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env && make keys rabbit-defs
+      - run: make up-infra
+      - run: make check-infra
+      - if: failure()
+        run: docker compose --profile '*' logs --tail=200
+      - if: always()
+        run: make reset
+
+  # Pila completa de la fase 1 (cuando los 8 servicios existan): se activa a mano o por cron.
+  stack:
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: bandadau-infra }
+      - uses: actions/checkout@v4
+        with: { repository: '${{ github.repository_owner }}/bandadau-backend', path: bandadau-backend, token: '${{ secrets.CI_REPOS_TOKEN || github.token }}' }
+      - uses: actions/checkout@v4
+        with: { repository: '${{ github.repository_owner }}/bandadau-shared', path: bandadau-shared, token: '${{ secrets.CI_REPOS_TOKEN || github.token }}' }
+      - uses: pnpm/action-setup@v4
+        with: { package_json_file: bandadau-shared/package.json }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - working-directory: bandadau-infra
+        run: cp .env.example .env && make setup && make up && make seed && make smoke
+      - if: failure()
+        working-directory: bandadau-infra
+        run: docker compose --profile '*' logs --tail=300

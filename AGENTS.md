@@ -15,7 +15,8 @@ verdad), `../bandadau-docs/docs/05-infraestructura/infraestructura.md` y
    inventa: se propone un ADR (`bandadau-docs/docs/03-arquitectura/adr/`) y se actualiza el catálogo primero.
 2. **No toques código de servicios/apps desde aquí.** Los `Dockerfile` viven en los repos hermanos
    (`bandadau-backend/services/<x>/`, `bandadau-frontend/`, `bandadau-admin/<app>/`, `bandadau-landing/`);
-   Compose solo los referencia (`build.context: ../../<repo>/…`). Si un Dockerfile
+   Compose solo los referencia (`build.context: ../bandadau-backend/services/<x>`; los servicios Node usan
+   `context: ../bandadau-backend` + `additional_contexts: { shared: ../bandadau-shared }`). Si un Dockerfile
    necesita un cambio, se hace en una sesión/PR del componente dueño.
 3. **Barato por defecto**: un EC2 + RDS micro + DynamoDB on-demand + S3/CloudFront. Prohibido
    agregar ALB, NAT Gateway, EKS/ECS, Multi-AZ, OpenSearch, MSK, etc. sin ADR con costo.
@@ -39,48 +40,54 @@ verdad), `../bandadau-docs/docs/05-infraestructura/infraestructura.md` y
 
 | Ruta | Contenido |
 |---|---|
-| `compose/` | `compose.yaml` (include), `infra.yaml`, `services.yaml`, `apps.yaml`, `tools.yaml`, `override.host-upstreams.yaml`, `prod.yaml` |
-| `traefik/` | `traefik.yml` + `dynamic/` (routers, middlewares: cors, ratelimit, internal-block, ops-auth) |
-| `postgres/init/` | `01-create-databases.sh` (3 bases, 3 usuarios) |
-| `mongo/init/` | replica set `rs0`, usuarios `social`, `media`, keyfile |
-| `dynamodb/` | `tables/*.json` (4 tablas) + `create-tables.sh` |
-| `rabbitmq/` | `rabbitmq.conf`, `definitions.template.json`, `render-definitions.sh` |
-| `minio/` | `init.sh` (buckets, usuarios, CORS) |
-| `n8n/` | workflows JSON (`wf-00-router` … `wf-06`), plantillas, scripts y credenciales de ejemplo — ver `n8n/AGENTS.md` |
-| `observability/` | dashboards Grafana, reglas de alerta, config del colector |
-| `seed/` | datos de demo vía APIs públicas/internas |
-| `load/` | escenarios k6 (RNF-01, RNF-02) |
-| `aws/cloudformation/` | `network`, `data`, `compute`, `edge`, `ci`, `scheduler` |
-| `aws/params/` | `dev.env.example`, `prod.env.example` |
-| `aws/scripts/` | `deploy-stack.sh`, `host-deploy.sh`, `render-env.sh`, `deploy-static.sh`, `backup-mongo.sh` |
-| `ci/actions/` | composite actions (`docker-build-push`, `ssm-deploy`, `static-deploy`) |
-| `ci/templates/` | plantillas de workflow por tipo de componente |
+| `docker-compose.yaml` | Un solo archivo con perfiles `infra`, `services`, `observability`, `llm` (la fase 1 no usa `compose/`) |
+| `.env.example` | Todas las variables (valores de desarrollo); `.env` está git-ignored |
+| `traefik/` | `traefik.yml` + `dynamic/{routers,middlewares}.yml` (usan `{{ env "BASE_DOMAIN" }}`; `deny-all` para `/internal` y `service-token`) |
+| `postgres/init/` | `01-create-databases.sh` (3 bases, 3 usuarios, idempotente) |
+| `mongo/init/` | `init.sh`, `init-replica.js`, `create-users.js` (rs0 + usuarios `social`, `media`); el keyfile lo crea el job `mongo-keyfile` |
+| `dynamodb/` | `tables/*.json` (4 tablas) + `ttl.txt` + `create-tables.sh` |
+| `rabbitmq/` | `rabbitmq.conf`, `definitions.template.json`, `render-definitions.sh` → `definitions.json` (versionado; se regenera con `make rabbit-defs`) |
+| `minio/` | `init.sh` (buckets, usuarios por servicio, políticas) |
+| `seed/` `smoke/` | Node ESM sin dependencias; `seed/lib` es compartido |
+| `scripts/` | `gen-keys.sh`, `wait-healthy.sh`, `check-infra.sh`, `host-upstream.sh`, `clone-all.sh`, `create-github-repos.sh` |
+| `secrets/` | PEM de desarrollo generados por `make keys` (git-ignored) |
+| `n8n/` | workflows JSON (fase 2) — ver `n8n/AGENTS.md` |
+| `ci/templates/` | plantillas de GitHub Actions por repo (copiar a `<repo>/.github/workflows/ci.yml`) |
+| *(pendiente, fases posteriores)* | `observability/` (dashboards), `load/` (k6), `aws/` (CloudFormation, scripts de despliegue), `ci/actions/` |
 
 ## Comandos (desde `bandadau-infra/`)
 
 ```bash
-make env                 # crea bandadau-infra/.env desde .env.example
-make infra-up            # perfil infra
-make up                  # infra + services
-make up-all              # infra + services + apps
-make svc S=<servicio>    # infra + un servicio
-make logs S=<servicio>   make ps   make down   make reset
-make seed                make load
-make n8n-import          make n8n-export
-make models-sync         # sube ONNX de ../bandadau-ml a MinIO
-make validate            # docker compose config --quiet + render definitions
-make cfn-lint            # cfn-lint aws/cloudformation/*.yaml
-make aws-deploy ENV=<dev|prod> STACK=<network|data|compute|edge|ci|scheduler>
-make aws-start ENV=<env> / make aws-stop ENV=<env>
+cp .env.example .env && make setup && make up && make seed && make smoke   # arranque completo de la fase 1
+make up-infra            # solo infraestructura (para correr servicios en el IDE)
+make up-obs              # + Grafana LGTM y OTLP activado
+make down   make reset   # reset = down -v (borra volúmenes)
+make restart S=<svc>     make logs S=<svc>   make ps   make build [S=<svc>]
+make host S=<svc>        make unhost S=<svc>   # redirige un servicio a tu IDE (proxy TCP hacia el host)
+make check-infra         # verifica el perfil infra (salud, colas, bases, tablas, buckets, rutas)
+make validate            # compose config + sintaxis de scripts + seed/smoke
+make urls                # URLs, puertos y credenciales de demo
 ```
 
-Validar antes de commitear (desde `bandadau-infra/`):
+`PROJECT=<nombre>` cambia el nombre del proyecto Compose (pruebas en paralelo sin tocar el stack principal).
+
+Validar antes de commitear:
 
 ```bash
-docker compose -f compose/compose.yaml config --quiet
-cfn-lint aws/cloudformation/*.yaml
-hadolint ../bandadau-backend/services/*/Dockerfile ../bandadau-{frontend,landing}/Dockerfile ../bandadau-admin/*/Dockerfile   # solo lectura: reporta al dueño
+make validate
+make up-infra PROJECT=test && make check-infra PROJECT=test && make reset PROJECT=test
 ```
+
+## Gotchas aprendidos (no los redescubras)
+
+- `mongo` está fijado a **8.0.19**: 8.0.21+ y 8.3 abortan en kernels Linux ≥ 6.19 (SERVER-121912, Docker Desktop reciente).
+- `postgres:18` monta el volumen en `/var/lib/postgresql` (no `/var/lib/postgresql/data`).
+- MinIO ya no se publica en `minio/minio` ni en quay: se usa la bifurcación comunitaria `pgsty/minio` (trae `mc` y `curl`).
+- `docker compose up --wait` falla con los jobs one-shot que terminan en 0: se usa `scripts/wait-healthy.sh`.
+- Con `--profile services` sola, Compose rechaza `depends_on` hacia servicios del perfil `infra`: usa `--profile '*'` o `infra`+`services`.
+- Traefik: el dominio sale de `{{ env "BASE_DOMAIN" }}` en el *file provider* (variable de entorno del contenedor); no escribas el dominio a mano.
+- RabbitMQ: las contraseñas de `definitions.json` van en claro (solo local); las colas/retry/DLQ siguen `eventos-y-mensajeria.md` §2.
+- Las `*.dlq` y las colas sin consumidor en fase 1 se acotan con *policies*, no con argumentos (para no romper la declaración idempotente del dueño).
 
 ## Al cerrar la sesión
 
