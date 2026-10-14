@@ -1,0 +1,23 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+*.pem
+*.p8
+*.key
+node_modules/
+dist/
+build/
+coverage/
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
+
+# Datos locales
+volumes/
+*.sqlite
+
+# Parámetros reales de AWS (solo se versionan los *.env.example)
+aws/params/*.env
+!aws/params/*.env.example
