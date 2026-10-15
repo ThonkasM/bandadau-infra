@@ -18,12 +18,15 @@ http:
           - traceparent
           - tracestate
           - Accept-Language
+          - X-Bandada-Client
+        accessControlAllowCredentials: true
         accessControlExposeHeaders:
           - Idempotent-Replayed
           - Content-Language
           - X-Correlation-Id
           - Location
           - Retry-After
+          - X-Unread-Count
         accessControlMaxAge: 600
         addVaryHeader: true
 
