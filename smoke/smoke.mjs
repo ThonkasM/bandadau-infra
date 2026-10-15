@@ -3,6 +3,7 @@
 // ticket ES256 → EVENT_FULL → inscripción con fallo y compensación (CHAOS_TICKETING_FAIL) → moderador y GraphQL.
 // Requiere `make up && make seed`. Sale con código ≠ 0 si algún paso falla.
 //   make smoke | node smoke/smoke.mjs [--no-chaos] [--only=chaos]
+// Fase 2 (agentes + MCP): --only=insights recorre solo los pasos de insights-service; SMOKE_INSIGHTS=0 los omite.
 // Variables: SMOKE_CHAOS=0 (omite el paso de caos), SMOKE_CHAOS_MODE=docker|http (http: POST $SMOKE_CHAOS_URL?fail=true|false)
 import { createPublicKey, verify } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -109,7 +110,7 @@ async function setTicketingChaos(on) {
 // ---------------------------------------------------------------------------------------------------------------
 const ctx = {};
 
-if (only !== 'chaos') {
+if (only !== 'chaos' && only !== 'insights') {
   await step('Borde: API responde (Traefik → identity)', async () => {
     expect(await waitForUrl(`${cfg.api}/universities`, { timeoutMs: 60000, ok: (s) => s === 200 }), `${cfg.api}/universities no responde 200`);
   });
@@ -313,7 +314,9 @@ if (only !== 'chaos') {
 }
 
 // --- compensación de la SAGA (D2): ticketing falla → reembolso ------------------------------------------------------------------
-if (!chaosEnabled && only !== 'chaos') {
+if (only === 'insights') {
+  // solo los pasos de insights (--only=insights)
+} else if (!chaosEnabled && only !== 'chaos') {
   await step('SAGA con fallo en ticketing → compensación (reembolso)', async () => {}, { skip: 'omitido (SMOKE_CHAOS=0 / --no-chaos)' });
 } else {
   let org2; let chaosStudent; let chaosEvent; let before;
@@ -351,6 +354,143 @@ if (!chaosEnabled && only !== 'chaos') {
   } finally {
     await step('Restaurar ticketing-service (caos desactivado)', async () => { await setTicketingChaos(false); }, chaosOn ? undefined : { skip: 'el caos nunca se activó' });
   }
+}
+
+// --- fase 2: insights-service (MCP + ReportAgent + MonitoringAgent) ---------------------------------------------------------------
+if (env('SMOKE_INSIGHTS', '1') === '0' && only !== 'insights') {
+  await step('Insights: servidor MCP, reporte generativo y alertas', async () => {}, { skip: 'omitido (SMOKE_INSIGHTS=0)' });
+} else {
+  const insightsPort = env('INSIGHTS_HOST_PORT', '7008');
+  const insightsInternal = `http://localhost:${insightsPort}`;
+  const mcpUrl = `${cfg.api.replace(/\/api\/v1$/, '')}/mcp`;
+  const mcp = async (token, method, params, id = 1) => {
+    const r = await request('POST', mcpUrl, { token, headers: { Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': '2025-06-18' }, body: { jsonrpc: '2.0', id, method, ...(params ? { params } : {}) } });
+    return r;
+  };
+  const gqlI = (token, query) => request('POST', cfg.graphql, { token, body: { query } });
+  let adminToken; let reportId; let alertId;
+
+  await step('Insights: /health/ready responde (insights-service)', async () => {
+    expect(await waitForUrl(`${insightsInternal}/health/ready`, { timeoutMs: 90000, ok: (s) => s === 200 }), `insights-service no responde en ${insightsInternal}`);
+  });
+  await step('Login del administrador (admin@umsa.edu.bo, audiencia del panel)', async () => {
+    const r = await login('admin@umsa.edu.bo', password, 'admin');
+    expect(r.ok, `login admin ${problem(r)} — ¿ejecutaste make seed?`);
+    expect(r.json.user.roles.includes('ADMIN'), 'admin no tiene rol ADMIN');
+    adminToken = r.json.accessToken;
+  });
+  await step('MCP: sin token → 401 con WWW-Authenticate (Traefik /mcp → insights)', async () => {
+    const r = await mcp(undefined, 'tools/list');
+    expect(r.status === 401, `esperaba 401, obtuvo ${r.status}`);
+    expect(/Bearer/i.test(r.headers.get('www-authenticate') ?? ''), 'falta WWW-Authenticate: Bearer');
+  });
+  await step('MCP: un moderador recibe 403 (solo ADMIN)', async () => {
+    const s = await login('mod@umsa.edu.bo', password, 'admin');
+    expect(s.ok, `login mod ${problem(s)}`);
+    const r = await mcp(s.json.accessToken, 'tools/list');
+    expect(r.status === 403, `esperaba 403, obtuvo ${r.status}`);
+  });
+  await step('MCP: initialize (Streamable HTTP, token ADMIN)', async () => {
+    const r = await mcp(adminToken, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'smoke', version: '1' } });
+    expect(r.ok, `initialize ${r.status} ${r.text.slice(0, 200)}`);
+    expect(r.json?.result?.serverInfo?.name === 'bandada-insights', `serverInfo ${JSON.stringify(r.json?.result?.serverInfo)}`);
+    return `${r.json.result.serverInfo.name} · protocolo ${r.json.result.protocolVersion}`;
+  });
+  await step('MCP: tools/list devuelve las herramientas del contrato (sin raise_alert)', async () => {
+    const r = await mcp(adminToken, 'tools/list', undefined, 2);
+    expect(r.ok, `tools/list ${r.status} ${r.text.slice(0, 200)}`);
+    const names = r.json.result.tools.map((t) => t.name);
+    for (const n of ['get_platform_kpis', 'get_registration_stats', 'list_events', 'get_credit_stats', 'get_content_stats', 'list_flagged_content', 'list_failed_sagas', 'get_service_health', 'query_metrics', 'detect_anomalies', 'generate_report']) {
+      expect(names.includes(n), `falta la herramienta ${n}`);
+    }
+    expect(!names.includes('raise_alert'), 'raise_alert no debe verse con un token de usuario');
+    return `${names.length} herramientas`;
+  });
+  await step('MCP: tools/call get_platform_kpis → KPIs agregados', async () => {
+    const to = new Date().toISOString().slice(0, 10);
+    const from = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const r = await mcp(adminToken, 'tools/call', { name: 'get_platform_kpis', arguments: { from, to } }, 3);
+    expect(r.ok && !r.json?.result?.isError, `tools/call ${r.status} ${r.text.slice(0, 300)}`);
+    const k = r.json.result.structuredContent;
+    expect(Number.isInteger(k.registrationsConfirmed) && Number.isInteger(k.posts) && Array.isArray(k.series), `KPIs inválidos: ${JSON.stringify(k).slice(0, 200)}`);
+    return `${k.posts} posts · ${k.registrationsConfirmed} inscripciones · ${k.creditsSpent} créditos gastados`;
+  });
+  await step('MCP: tools/call get_service_health → servicios y colas', async () => {
+    const r = await mcp(adminToken, 'tools/call', { name: 'get_service_health', arguments: {} }, 4);
+    expect(r.ok && !r.json?.result?.isError, `tools/call ${r.status} ${r.text.slice(0, 300)}`);
+    const h = r.json.result.structuredContent;
+    expect(h.services.length >= 8, `solo ${h.services.length} servicios`);
+    return `${h.overall} · ${h.services.length} servicios · ${(h.queues ?? []).length} colas`;
+  });
+  await step('Reporte generativo (es): requestReport → 202 PENDING → READY con markdown y dataset', async () => {
+    const key = uuidv7();
+    const body = { question: '¿Cuántas inscripciones hubo y cuántos créditos se usaron en los últimos 30 días?', locale: 'es' };
+    const r = await request('POST', `${cfg.api}/insights/reports`, { token: adminToken, idempotencyKey: key, body });
+    expect(r.status === 202, `esperaba 202, obtuvo ${r.status} ${problem(r)}`);
+    expect(r.json.status === 'PENDING' && r.json.locale === 'es', `respuesta ${JSON.stringify(r.json)}`);
+    reportId = r.json.reportId;
+    const again = await request('POST', `${cfg.api}/insights/reports`, { token: adminToken, idempotencyKey: key, body });
+    expect(again.status === 202 && again.json.reportId === reportId && again.headers.get('idempotent-replayed') === 'true', 'el reintento con la misma Idempotency-Key debe repetir la respuesta');
+    const done = await poll(async () => {
+      const g = await request('GET', `${cfg.api}/insights/reports/${reportId}`, { token: adminToken });
+      return g.ok && ['READY', 'FAILED'].includes(g.json.status) ? g.json : null;
+    }, { timeoutMs: 90000 });
+    expect(done, 'el reporte no terminó en 90 s');
+    expect(done.status === 'READY', `reporte ${done.status}: ${done.failureReason}`);
+    expect(done.locale === 'es' && /Limitaciones/.test(done.markdown ?? ''), 'el markdown no está en español');
+    expect(Array.isArray(done.dataset?.rows) && done.dataset.rows.length > 0, 'dataset vacío');
+    expect(done.chart?.$schema?.includes('vega-lite'), 'falta el gráfico Vega-Lite');
+    expect(!/#[0-9a-f]{3,6}\b/i.test(JSON.stringify(done.chart)), 'el gráfico no debe llevar colores (D13)');
+    ctx.agentRunId = done.agentRunId;
+    return `READY · ${done.dataset.rows.length} filas · audio ${done.hasAudio ? 'sí' : 'no (TTS_PROVIDER=none)'}`;
+  });
+  await step('AgentRun del reporte: pasos, herramientas MCP y tokens auditados', async () => {
+    const r = await request('GET', `${cfg.api}/insights/agent-runs/${ctx.agentRunId}`, { token: adminToken });
+    expect(r.ok, `getAgentRun ${problem(r)}`);
+    expect(r.json.status === 'SUCCEEDED' && r.json.toolsUsed.length > 0, `run ${r.json.status} ${r.json.toolsUsed}`);
+    expect(r.json.steps.some((x) => x.kind === 'TOOL_CALL'), 'sin pasos TOOL_CALL');
+    return `${r.json.llmProvider ?? '-'} · ${r.json.toolsUsed.join(', ')} · ${r.json.tokens.total} tokens`;
+  });
+  await step('Reporte (en): mismo flujo en inglés', async () => {
+    const r = await request('POST', `${cfg.api}/insights/reports`, { token: adminToken, idempotencyKey: uuidv7(), body: { question: 'How many registrations were there in the last 30 days?', locale: 'en' } });
+    expect(r.status === 202 && r.json.locale === 'en', `${r.status} ${problem(r)}`);
+    const done = await poll(async () => {
+      const g = await request('GET', `${cfg.api}/insights/reports/${r.json.reportId}`, { token: adminToken });
+      return g.ok && ['READY', 'FAILED'].includes(g.json.status) ? g.json : null;
+    }, { timeoutMs: 90000 });
+    expect(done?.status === 'READY' && /Limitations/.test(done.markdown ?? ''), `reporte en inglés ${done?.status}`);
+  });
+  await step('Monitoreo: runMonitoringNow (interno) → SUCCEEDED', async () => {
+    const t = await request('POST', `${cfg.identityInternal}/api/v1/auth/service-token`, { body: { clientId: cfg.seedClientId, clientSecret: cfg.seedClientSecret, scopes: ['internal:read', 'internal:write'] } });
+    expect(t.ok, `service-token ${problem(t)}`);
+    ctx.svc = t.json.accessToken;
+    const r = await request('POST', `${insightsInternal}/internal/v1/agents/monitoring/runs`, { token: ctx.svc, idempotencyKey: uuidv7(), body: {} });
+    expect(r.status === 202, `esperaba 202, obtuvo ${r.status} ${problem(r)}`);
+    const run = await poll(async () => {
+      const g = await request('GET', `${cfg.api}/insights/agent-runs/${r.json.agentRunId}`, { token: adminToken });
+      return g.ok && g.json.status !== 'RUNNING' ? g.json : null;
+    }, { timeoutMs: 60000 });
+    expect(run?.status === 'SUCCEEDED', `monitoreo ${run?.status} ${run?.error}`);
+    expect(run.toolsUsed.includes('get_service_health'), 'el agente no consultó get_service_health por MCP');
+    return `${run.toolsUsed.join(', ')} · ${run.alertIds.length} alertas`;
+  });
+  await step('Alerta de prueba: raiseAlert → publicada (alert.raised) → visible en el panel (GraphQL alerts)', async () => {
+    const r = await request('POST', `${insightsInternal}/internal/v1/alerts`, { token: ctx.svc, idempotencyKey: uuidv7(), body: { severity: 'WARNING', kind: 'MODERATION_ESCALATION', message: `Alerta de prueba del smoke ${run}`, details: { resource: `smoke-${run}` }, source: 'MANUAL' } });
+    expect(r.status === 201, `esperaba 201, obtuvo ${r.status} ${problem(r)}`);
+    alertId = r.json.id;
+    const g = await gqlI(adminToken, '{ alerts(status: OPEN, first: 50) { id severity kind message resource } }');
+    expect(g.ok && !g.json?.errors, `GraphQL alerts: ${JSON.stringify(g.json?.errors ?? g.text).slice(0, 200)} (¿admin-gateway sin reconstruir?)`);
+    expect(g.json.data.alerts.some((a) => a.id === alertId), 'la alerta no aparece en GraphQL alerts');
+    return `${alertId} · ${g.json.data.alerts.length} abiertas`;
+  });
+  await step('Alerta: acknowledge (REST) y GraphQL reports/agentRuns sin FEATURE_DISABLED', async () => {
+    const a = await request('POST', `${cfg.api}/insights/alerts/${alertId}/ack`, { token: adminToken, body: { note: 'smoke' } });
+    expect(a.ok && a.json.status === 'ACKNOWLEDGED', `ack ${a.status} ${problem(a)}`);
+    const g = await gqlI(adminToken, '{ reports(first: 3) { edges { node { id status } } } agentRuns(first: 3) { edges { node { id agent status } } } }');
+    expect(g.ok && !g.json?.errors, `GraphQL: ${JSON.stringify(g.json?.errors ?? g.text).slice(0, 200)}`);
+    expect(g.json.data.reports.edges.length > 0 && g.json.data.agentRuns.edges.length > 0, 'listas vacías');
+    return `${g.json.data.reports.edges.length} reportes · ${g.json.data.agentRuns.edges.length} ejecuciones`;
+  });
 }
 
 process.exit(report.finish());
