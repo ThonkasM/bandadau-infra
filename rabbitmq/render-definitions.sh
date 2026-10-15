@@ -11,12 +11,25 @@ for k in RABBITMQ_DEFAULT_USER RABBITMQ_DEFAULT_PASS RABBITMQ_ADMIN_PASSWORD RAB
 done
 : "${RABBITMQ_DEFAULT_USER:=bandada}" "${RABBITMQ_DEFAULT_PASS:=bandada}" "${RABBITMQ_ADMIN_PASSWORD:=admin}"
 : "${RABBITMQ_N8N_PASSWORD:=n8n_dev}" "${RABBITMQ_MONITOR_PASSWORD:=monitor_dev}"
+# I-4 (RNF-07): un usuario por servicio (nombre = servicio) con permisos solo sobre sus colas `<svc>.*`
+# y los exchanges bandada.{events,commands,dlx}. Variable: RABBITMQ_<SERVICIO_EN_MAYUSCULAS>_PASSWORD.
+SERVICES=(identity-service social-service media-service events-service wallet-service ticketing-service notification-service insights-service admin-gateway)
+svc_var() { printf 'RABBITMQ_%s_PASSWORD' "$(printf '%s' "$1" | tr 'a-z-' 'A-Z_')"; }
+for svc in "${SERVICES[@]}"; do
+  k="$(svc_var "$svc")"; v="$(envval "$k")"; [[ -n "$v" ]] && export "$k=$v"
+done
 esc() { printf '%s' "$1" | sed -e 's/[\/&|"\\]/\\&/g'; }
+SVC_SED=()
+for svc in "${SERVICES[@]}"; do
+  k="$(svc_var "$svc")"; pw="${!k:-${svc}_dev}"
+  SVC_SED+=(-e "s|__RABBITMQ_PASSWORD_${svc}__|$(esc "$pw")|g")
+done
 sed -e "s|__RABBITMQ_DEFAULT_USER__|$(esc "$RABBITMQ_DEFAULT_USER")|g" \
     -e "s|__RABBITMQ_DEFAULT_PASS__|$(esc "$RABBITMQ_DEFAULT_PASS")|g" \
     -e "s|__RABBITMQ_ADMIN_PASSWORD__|$(esc "$RABBITMQ_ADMIN_PASSWORD")|g" \
     -e "s|__RABBITMQ_N8N_PASSWORD__|$(esc "$RABBITMQ_N8N_PASSWORD")|g" \
     -e "s|__RABBITMQ_MONITOR_PASSWORD__|$(esc "$RABBITMQ_MONITOR_PASSWORD")|g" \
+    "${SVC_SED[@]}" \
     definitions.template.json > definitions.json
 node -e 'JSON.parse(require("fs").readFileSync("definitions.json","utf8"))'
 echo "rabbitmq/definitions.json generado"

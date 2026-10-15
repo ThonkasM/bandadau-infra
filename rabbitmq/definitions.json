@@ -20,6 +20,51 @@
       "name": "monitor",
       "password": "monitor_dev",
       "tags": "monitoring"
+    },
+    {
+      "name": "identity-service",
+      "password": "identity-service_dev",
+      "tags": ""
+    },
+    {
+      "name": "social-service",
+      "password": "social-service_dev",
+      "tags": ""
+    },
+    {
+      "name": "media-service",
+      "password": "media-service_dev",
+      "tags": ""
+    },
+    {
+      "name": "events-service",
+      "password": "events-service_dev",
+      "tags": ""
+    },
+    {
+      "name": "wallet-service",
+      "password": "wallet-service_dev",
+      "tags": ""
+    },
+    {
+      "name": "ticketing-service",
+      "password": "ticketing-service_dev",
+      "tags": ""
+    },
+    {
+      "name": "notification-service",
+      "password": "notification-service_dev",
+      "tags": ""
+    },
+    {
+      "name": "insights-service",
+      "password": "insights-service_dev",
+      "tags": ""
+    },
+    {
+      "name": "admin-gateway",
+      "password": "admin-gateway_dev",
+      "tags": ""
     }
   ],
   "vhosts": [
@@ -55,6 +100,69 @@
       "configure": "^$",
       "write": "^$",
       "read": ".*"
+    },
+    {
+      "user": "identity-service",
+      "vhost": "/",
+      "configure": "^identity-service\\..*$",
+      "write": "^(identity-service\\..*|bandada\\.(events|commands|dlx)|amq\\.default)$",
+      "read": "^(identity-service\\..*|bandada\\.(events|commands|dlx))$"
+    },
+    {
+      "user": "social-service",
+      "vhost": "/",
+      "configure": "^social-service\\..*$",
+      "write": "^(social-service\\..*|bandada\\.(events|commands|dlx)|amq\\.default)$",
+      "read": "^(social-service\\..*|bandada\\.(events|commands|dlx))$"
+    },
+    {
+      "user": "media-service",
+      "vhost": "/",
+      "configure": "^media-service\\..*$",
+      "write": "^(media-service\\..*|bandada\\.(events|commands|dlx)|amq\\.default)$",
+      "read": "^(media-service\\..*|bandada\\.(events|commands|dlx))$"
+    },
+    {
+      "user": "events-service",
+      "vhost": "/",
+      "configure": "^events-service\\..*$",
+      "write": "^(events-service\\..*|bandada\\.(events|commands|dlx)|amq\\.default)$",
+      "read": "^(events-service\\..*|bandada\\.(events|commands|dlx))$"
+    },
+    {
+      "user": "wallet-service",
+      "vhost": "/",
+      "configure": "^wallet-service\\..*$",
+      "write": "^(wallet-service\\..*|bandada\\.(events|commands|dlx)|amq\\.default)$",
+      "read": "^(wallet-service\\..*|bandada\\.(events|commands|dlx))$"
+    },
+    {
+      "user": "ticketing-service",
+      "vhost": "/",
+      "configure": "^ticketing-service\\..*$",
+      "write": "^(ticketing-service\\..*|bandada\\.(events|commands|dlx)|amq\\.default)$",
+      "read": "^(ticketing-service\\..*|bandada\\.(events|commands|dlx))$"
+    },
+    {
+      "user": "notification-service",
+      "vhost": "/",
+      "configure": "^notification-service\\..*$",
+      "write": "^(notification-service\\..*|bandada\\.(events|commands|dlx)|amq\\.default)$",
+      "read": "^(notification-service\\..*|bandada\\.(events|commands|dlx))$"
+    },
+    {
+      "user": "insights-service",
+      "vhost": "/",
+      "configure": "^insights-service\\..*$",
+      "write": "^(insights-service\\..*|bandada\\.(events|commands|dlx)|amq\\.default)$",
+      "read": "^(insights-service\\..*|bandada\\.(events|commands|dlx))$"
+    },
+    {
+      "user": "admin-gateway",
+      "vhost": "/",
+      "configure": "^admin-gateway\\..*$",
+      "write": "^(admin-gateway\\..*|bandada\\.(events|commands|dlx)|amq\\.default)$",
+      "read": "^(admin-gateway\\..*|bandada\\.(events|commands|dlx))$"
     }
   ],
   "topic_permissions": [],

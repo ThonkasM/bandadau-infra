@@ -391,6 +391,7 @@ services:
       <<: [*service-env, *java-env]
       PORT: "7001"
       OTEL_SERVICE_NAME: identity-service
+      RABBITMQ_URL: amqp://${RABBITMQ_IDENTITY_SERVICE_USER:-bandada}:${RABBITMQ_IDENTITY_SERVICE_PASSWORD:-bandada}@rabbitmq:5672   # I-4: usuario por servicio (ver .env.example)
       DATABASE_URL: jdbc:postgresql://postgres:5432/identity_db
       DATABASE_USER: identity
       DATABASE_PASSWORD: ${IDENTITY_DB_PASSWORD:-identity_dev}
@@ -433,6 +434,7 @@ services:
       <<: [*service-env, *node-env]
       PORT: "7002"
       OTEL_SERVICE_NAME: social-service
+      RABBITMQ_URL: amqp://${RABBITMQ_SOCIAL_SERVICE_USER:-bandada}:${RABBITMQ_SOCIAL_SERVICE_PASSWORD:-bandada}@rabbitmq:5672   # I-4: usuario por servicio (ver .env.example)
       MONGODB_URI: mongodb://social:${SOCIAL_MONGO_PASSWORD:-social_dev}@mongo:27017/social?replicaSet=rs0&authSource=social
       MEDIA_SERVICE_URL: http://media-service:7003
       SERVICE_CLIENT_ID: social-service
@@ -463,6 +465,7 @@ services:
       <<: [*service-env, *node-env]
       PORT: "7003"
       OTEL_SERVICE_NAME: media-service
+      RABBITMQ_URL: amqp://${RABBITMQ_MEDIA_SERVICE_USER:-bandada}:${RABBITMQ_MEDIA_SERVICE_PASSWORD:-bandada}@rabbitmq:5672   # I-4: usuario por servicio (ver .env.example)
       MONGODB_URI: mongodb://media:${MEDIA_MONGO_PASSWORD:-media_dev}@mongo:27017/media?replicaSet=rs0&authSource=media
       MODERATION_MODE: ${MODERATION_MODE:-allow-all}
       S3_ENDPOINT: http://minio:9000
@@ -510,6 +513,7 @@ services:
       <<: [*service-env, *java-env]
       PORT: "7004"
       OTEL_SERVICE_NAME: events-service
+      RABBITMQ_URL: amqp://${RABBITMQ_EVENTS_SERVICE_USER:-bandada}:${RABBITMQ_EVENTS_SERVICE_PASSWORD:-bandada}@rabbitmq:5672   # I-4: usuario por servicio (ver .env.example)
       DATABASE_URL: jdbc:postgresql://postgres:5432/events_db
       DATABASE_USER: events
       DATABASE_PASSWORD: ${EVENTS_DB_PASSWORD:-events_dev}
@@ -543,6 +547,7 @@ services:
       APP_PORT: "7005"
       APP_KEY: ${WALLET_APP_KEY}
       OTEL_SERVICE_NAME: wallet-service
+      RABBITMQ_URL: amqp://${RABBITMQ_WALLET_SERVICE_USER:-bandada}:${RABBITMQ_WALLET_SERVICE_PASSWORD:-bandada}@rabbitmq:5672   # I-4: usuario por servicio (ver .env.example)
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: "5432"
@@ -611,6 +616,7 @@ services:
       <<: [*service-env, *node-env]
       PORT: "7006"
       OTEL_SERVICE_NAME: ticketing-service
+      RABBITMQ_URL: amqp://${RABBITMQ_TICKETING_SERVICE_USER:-bandada}:${RABBITMQ_TICKETING_SERVICE_PASSWORD:-bandada}@rabbitmq:5672   # I-4: usuario por servicio (ver .env.example)
       TICKETING_TABLE: ${TICKETING_TABLE:-bandada-ticketing}
       EVENTS_SERVICE_URL: http://events-service:7004
       SERVICE_CLIENT_ID: ticketing-service
@@ -644,6 +650,7 @@ services:
       PORT: "7008"
       NODE_OPTIONS: --max-old-space-size=256
       OTEL_SERVICE_NAME: insights-service
+      RABBITMQ_URL: amqp://${RABBITMQ_INSIGHTS_SERVICE_USER:-bandada}:${RABBITMQ_INSIGHTS_SERVICE_PASSWORD:-bandada}@rabbitmq:5672   # I-4: usuario por servicio (ver .env.example)
       INSIGHTS_TABLE: ${INSIGHTS_TABLE:-bandada-insights}
       S3_ENDPOINT: http://minio:9000
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
@@ -699,6 +706,7 @@ services:
       APP_PORT: "7007"
       APP_KEY: ${NOTIFICATION_APP_KEY}
       OTEL_SERVICE_NAME: notification-service
+      RABBITMQ_URL: amqp://${RABBITMQ_NOTIFICATION_SERVICE_USER:-bandada}:${RABBITMQ_NOTIFICATION_SERVICE_PASSWORD:-bandada}@rabbitmq:5672   # I-4: usuario por servicio (ver .env.example)
       NOTIFICATIONS_TABLE: ${NOTIFICATIONS_TABLE:-bandada-notifications}
       NOTIFICATION_TTL_DAYS: ${NOTIFICATION_TTL_DAYS:-90}
       MAIL_MAILER: ${MAIL_MAILER:-smtp}
@@ -765,6 +773,7 @@ services:
       <<: [*service-env, *node-env]
       PORT: "7010"
       OTEL_SERVICE_NAME: admin-gateway
+      RABBITMQ_URL: amqp://${RABBITMQ_ADMIN_GATEWAY_USER:-bandada}:${RABBITMQ_ADMIN_GATEWAY_PASSWORD:-bandada}@rabbitmq:5672   # I-4: usuario por servicio (ver .env.example)
       SOCIAL_SERVICE_URL: http://social-service:7002
       MEDIA_SERVICE_URL: http://media-service:7003
       EVENTS_SERVICE_URL: http://events-service:7004
