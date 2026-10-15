@@ -628,6 +628,64 @@ services:
     healthcheck:
       <<: *hc-fast
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7007/health/ready >/dev/null 2>&1 || curl -fsS http://127.0.0.1:7007/health/ready >/dev/null"]
+  insights-service:
+    <<: *base
+    image: bandada/insights-service:${IMAGE_TAG:-local}
+    profiles: [services]
+    build:
+      context: ../bandadau-backend
+      dockerfile: services/insights-service/Dockerfile
+      additional_contexts:
+        shared: ../bandadau-shared
+    ports:
+      - "${INSIGHTS_HOST_PORT:-7008}:7008"
+    environment:
+      <<: [*service-env, *node-env]
+      PORT: "7008"
+      NODE_OPTIONS: --max-old-space-size=256
+      OTEL_SERVICE_NAME: insights-service
+      INSIGHTS_TABLE: ${INSIGHTS_TABLE:-bandada-insights}
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
+      S3_BUCKET_AUDIO: ${S3_BUCKET_REPORTS:-bandada-reports}
+      S3_ACCESS_KEY_ID: ${INSIGHTS_S3_ACCESS_KEY:-insights-svc}
+      S3_SECRET_ACCESS_KEY: ${INSIGHTS_S3_SECRET_KEY:-insights_svc_dev_pw}
+      SERVICE_CLIENT_ID: insights-service
+      SERVICE_CLIENT_SECRET: ${INSIGHTS_SERVICE_CLIENT_SECRET:-dev-secret-insights}
+      SOCIAL_SERVICE_URL: http://social-service:7002
+      MEDIA_SERVICE_URL: http://media-service:7003
+      EVENTS_SERVICE_URL: http://events-service:7004
+      WALLET_SERVICE_URL: http://wallet-service:7005
+      TICKETING_SERVICE_URL: http://ticketing-service:7006
+      NOTIFICATION_SERVICE_URL: http://notification-service:7007
+      ADMIN_GATEWAY_URL: http://admin-gateway:7010
+      RABBITMQ_MANAGEMENT_URL: http://rabbitmq:15672
+      RABBITMQ_MANAGEMENT_USER: ${RABBITMQ_MONITOR_USER:-monitor}
+      RABBITMQ_MANAGEMENT_PASSWORD: ${RABBITMQ_MONITOR_PASSWORD:-monitor_dev}
+      MCP_INTERNAL_URL: http://127.0.0.1:7008/mcp
+      MCP_ALLOWED_ORIGINS: ${MCP_ALLOWED_ORIGINS:-http://api.bandada.localhost,http://admin.bandada.localhost}
+      LLM_PROVIDER: ${LLM_PROVIDER:-stub}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-claude-sonnet-5-5}
+      LLM_MODEL_CHEAP: ${LLM_MODEL_CHEAP:-claude-haiku-5-5}
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      TTS_PROVIDER: ${TTS_PROVIDER:-none}
+      PIPER_URL: http://piper:5002
+      PROMETHEUS_URL: ${PROMETHEUS_URL:-}
+      AGENT_MAX_STEPS: ${AGENT_MAX_STEPS:-8}
+      AGENT_MAX_TOKENS: ${AGENT_MAX_TOKENS:-20000}
+      MONITORING_ENABLED: ${MONITORING_ENABLED:-true}
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+      dynamodb-init: { condition: service_completed_successfully }
+      minio-init: { condition: service_completed_successfully }
+      identity-service: { condition: service_healthy }
+    healthcheck:
+      <<: *hc-fast
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7008/health/ready >/dev/null 2>&1 || curl -fsS http://127.0.0.1:7008/health/ready >/dev/null"]
+    mem_limit: 384m
+
     mem_limit: 256m
 
   notification-worker:
