@@ -149,3 +149,25 @@ urls: ## Muestra URLs, puertos y credenciales de demo
 clone-all: ## Clona los 8 repos hermanos: make clone-all OWNER=<org-o-usuario-github>
 	@test -n "$(OWNER)" || { echo "uso: make clone-all OWNER=<owner>"; exit 1; }
 	@cd .. && bash bandadau-infra/scripts/clone-all.sh $(OWNER)
+
+# ---------------------------------------------------------------------------
+# Gateway mock de desarrollo (sin Docker): REST /api/v1 + GraphQL /graphql en http://localhost:4010
+# ---------------------------------------------------------------------------
+MOCK_PORT ?= 4010
+MOCK_DIR  := mock
+
+mock: ## Levanta el gateway mock (Node, sin Docker) en http://localhost:4010 [MOCK_PORT=...]; ver mock/README.md
+	@command -v node >/dev/null || { echo "Falta Node 24"; exit 1; }
+	@test -d $(MOCK_DIR)/node_modules || (cd $(MOCK_DIR) && npm ci --no-audit --no-fund)
+	@if [ -f $(MOCK_DIR)/.mock.pid ] && kill -0 $$(cat $(MOCK_DIR)/.mock.pid) 2>/dev/null; then echo "El mock ya corre (pid $$(cat $(MOCK_DIR)/.mock.pid)) en http://localhost:$(MOCK_PORT)"; exit 0; fi
+	@if lsof -nP -iTCP:$(MOCK_PORT) -sTCP:LISTEN >/dev/null 2>&1; then echo "El puerto $(MOCK_PORT) ya está en uso por otro proceso: detenlo o usa make mock MOCK_PORT=<otro>"; exit 1; fi
+	@cd $(MOCK_DIR) && (MOCK_PORT=$(MOCK_PORT) nohup node src/server.mjs > .mock.log 2>&1 & echo $$! > .mock.pid)
+	@for i in $$(seq 1 40); do curl -fs http://localhost:$(MOCK_PORT)/health/ready >/dev/null 2>&1 && break; sleep 0.25; done; \
+	 curl -fs http://localhost:$(MOCK_PORT)/health/ready >/dev/null 2>&1 && { echo "mock listo: http://localhost:$(MOCK_PORT)  (REST /api/v1 · GraphQL /graphql · logs: mock/.mock.log)"; echo "demo: admin|mod|org|lucia|marco@umsa.edu.bo / Bandada#2026 · código de verificación 123456"; } || { echo "El mock no arrancó:"; cat $(MOCK_DIR)/.mock.log; rm -f $(MOCK_DIR)/.mock.pid; exit 1; }
+
+mock-stop: ## Detiene el gateway mock
+	@if [ -f $(MOCK_DIR)/.mock.pid ]; then kill $$(cat $(MOCK_DIR)/.mock.pid) 2>/dev/null; rm -f $(MOCK_DIR)/.mock.pid; echo "mock detenido"; else echo "el mock no está corriendo (¿arrancado con make mock?)"; fi
+
+mock-test: ## Pruebas del mock (esquemas OpenAPI con ajv, SDL, GraphQL + WebSocket)
+	cd $(MOCK_DIR) && npm test
+.PHONY: mock mock-stop mock-test
