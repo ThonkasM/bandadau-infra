@@ -407,6 +407,15 @@ services:
       SMTP_PORT: "1025"
       MAIL_FROM: ${MAIL_FROM:-no-reply@bandada.localhost}
       SERVICE_CLIENTS: ${SERVICE_CLIENTS}
+      SERVICE_TOKEN_TTL: ${SERVICE_TOKEN_TTL:-PT5M}
+      MCP_TOKEN_TTL: ${MCP_TOKEN_TTL:-PT8H}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      AUTH_RATE_LIMIT_PER_MINUTE: ${AUTH_RATE_LIMIT_PER_MINUTE:-60}
+      HANDOFF_RATE_LIMIT_PER_MINUTE: ${HANDOFF_RATE_LIMIT_PER_MINUTE:-10}
+      RESEND_MIN_INTERVAL: ${RESEND_MIN_INTERVAL:-PT60S}
+      RESEND_PER_HOUR: ${RESEND_PER_HOUR:-5}
+      REGISTER_HIDE_EXISTING_ACCOUNTS: ${REGISTER_HIDE_EXISTING_ACCOUNTS:-true}
+      RATE_LIMIT_STORE: ${RATE_LIMIT_STORE:-postgres}
     volumes:
       # si no hay llave, identity genera el par RS256 aquí (montaje de lectura/escritura); `make keys` la pre-genera
       - ./secrets:/run/secrets
@@ -435,6 +444,7 @@ services:
       PORT: "7002"
       OTEL_SERVICE_NAME: social-service
       RABBITMQ_URL: amqp://${RABBITMQ_SOCIAL_SERVICE_USER:-bandada}:${RABBITMQ_SOCIAL_SERVICE_PASSWORD:-bandada}@rabbitmq:5672   # I-4: usuario por servicio (ver .env.example)
+      INTERNAL_SCOPES_ENFORCED: ${INTERNAL_SCOPES_ENFORCED:-true}   # D-7
       MONGODB_URI: mongodb://social:${SOCIAL_MONGO_PASSWORD:-social_dev}@mongo:27017/social?replicaSet=rs0&authSource=social
       MEDIA_SERVICE_URL: http://media-service:7003
       SERVICE_CLIENT_ID: social-service
@@ -466,6 +476,7 @@ services:
       PORT: "7003"
       OTEL_SERVICE_NAME: media-service
       RABBITMQ_URL: amqp://${RABBITMQ_MEDIA_SERVICE_USER:-bandada}:${RABBITMQ_MEDIA_SERVICE_PASSWORD:-bandada}@rabbitmq:5672   # I-4: usuario por servicio (ver .env.example)
+      INTERNAL_SCOPES_ENFORCED: ${INTERNAL_SCOPES_ENFORCED:-true}   # D-7
       MONGODB_URI: mongodb://media:${MEDIA_MONGO_PASSWORD:-media_dev}@mongo:27017/media?replicaSet=rs0&authSource=media
       MODERATION_MODE: ${MODERATION_MODE:-allow-all}
       S3_ENDPOINT: http://minio:9000
@@ -519,6 +530,7 @@ services:
       DATABASE_PASSWORD: ${EVENTS_DB_PASSWORD:-events_dev}
       MEDIA_SERVICE_URL: http://media-service:7003
       COVER_CHECK: ${COVER_CHECK:-on}   # valida coverMediaId contra media (cliente de servicio events-service en SERVICE_CLIENTS)
+      INTERNAL_SCOPES_ENFORCED: ${INTERNAL_SCOPES_ENFORCED:-true}   # D-7: /internal exige internal:read|write
       SERVICE_CLIENT_ID: events-service
       SERVICE_CLIENT_SECRET: ${EVENTS_SERVICE_CLIENT_SECRET:-dev-secret-events}
       SAGA_STEP_TIMEOUT: ${SAGA_STEP_TIMEOUT:-PT30S}
@@ -557,6 +569,7 @@ services:
       PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-dev-webhook-secret}
       PAYMENT_CHECKOUT_BASE_URL: ${PAYMENT_CHECKOUT_BASE_URL:-http://app.bandada.localhost/wallet/checkout}
       PAYMENT_GATEWAY: simulated
+      PAYMENT_GATEWAY_MODE: ${PAYMENT_GATEWAY_MODE:-simulate}   # simulate | unavailable (D-14: demo del fallo de pasarela, 503)
       PAYMENT_SIMULATOR_ENABLED: ${PAYMENT_SIMULATOR_ENABLED:-true}
       TOPUP_PACKAGES: ${TOPUP_PACKAGES:-CREDITS_20,CREDITS_50,CREDITS_100}
       CHAOS_WALLET_DELAY_MS: ${CHAOS_WALLET_DELAY_MS:-0}
@@ -714,6 +727,11 @@ services:
       MAIL_PORT: "1025"
       MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@bandada.localhost}
       PUSH_ENABLED: ${PUSH_ENABLED:-false}
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-true}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:no-reply@bandada.localhost}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      WEB_PUSH_TTL_SECONDS: ${WEB_PUSH_TTL_SECONDS:-86400}
       EXPO_PUSH_URL: ${EXPO_PUSH_URL:-https://exp.host/--/api/v2/push/send}
       EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN:-}
       APP_DEEP_LINK_BASE: ${APP_DEEP_LINK_BASE:-http://app.bandada.localhost}
