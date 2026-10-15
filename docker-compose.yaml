@@ -451,6 +451,12 @@ services:
       MODERATION_REVIEW_THRESHOLD: ${MODERATION_REVIEW_THRESHOLD:-0.5}
       VIDEO_FRAME_INTERVAL_SECONDS: ${VIDEO_FRAME_INTERVAL_SECONDS:-2}
       VIDEO_MAX_FRAMES: ${VIDEO_MAX_FRAMES:-30}
+      MODEL_NAME: ${MODEL_NAME:-nsfw-classifier}
+      MODEL_VARIANT: ${MODEL_VARIANT:-fp32}
+      ORT_THREADS: ${ORT_THREADS:-2}
+      MODEL_CACHE_DIR: /models-cache
+    volumes:
+      - media-models-cache:/models-cache
     depends_on:
       mongo-init: { condition: service_completed_successfully }
       minio-init: { condition: service_completed_successfully }
@@ -459,7 +465,7 @@ services:
     healthcheck:
       <<: *hc-fast
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7003/health/ready >/dev/null 2>&1 || curl -fsS http://127.0.0.1:7003/health/ready >/dev/null"]
-    mem_limit: 384m   # (+ ffmpeg/onnx en la fase 2)
+    mem_limit: 1g   # ViT fp32 (~343 MB) + sharp/ffmpeg con MODERATION_MODE=onnx; en allow-all/manual usa ~150 MB
 
   events-service:
     <<: *base
@@ -735,3 +741,4 @@ volumes:
   mailpit-data:
   n8n-data:
   lgtm-data:
+  media-models-cache:
