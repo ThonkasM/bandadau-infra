@@ -51,7 +51,8 @@ export async function ensureUniversity({ name, domain }) {
   throw new Error(`crear universidad ${name}: ${problem(r)}`);
 }
 
-export const login = (email, password) => request('POST', `${cfg.api}/auth/login`, { body: { email, password } });
+export const login = (email, password, client = 'native') =>
+  request('POST', `${cfg.api}/auth/login`, { body: { email, password }, headers: { 'X-Bandada-Client': client } });
 
 /**
  * Deja un usuario ACTIVE y devuelve { tokens, user, created }. Idempotente: si ya existe, solo inicia sesión.

@@ -272,7 +272,7 @@ if (only !== 'chaos') {
   const gql = (token, query) => request('POST', cfg.graphql, { token, body: { query } });
   let modToken;
   await step('Login del moderador (mod@umsa.edu.bo)', async () => {
-    const r = await login('mod@umsa.edu.bo', password);
+    const r = await login('mod@umsa.edu.bo', password, 'admin');
     expect(r.ok, `login mod ${problem(r)} — ¿ejecutaste make seed?`);
     expect(r.json.user.roles.includes('MODERATOR'), 'mod no tiene rol MODERATOR');
     modToken = r.json.accessToken;
