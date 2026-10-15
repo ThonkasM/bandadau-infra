@@ -1,0 +1,25 @@
+{
+  "name": "@bandada/mock-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gateway mock de desarrollo de Bandada U (REST /api/v1 + GraphQL /graphql) con datos en memoria",
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "dev": "node --watch src/server.mjs",
+    "test": "node --test --test-timeout=60000 test/"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.3.1",
+    "@graphql-tools/schema": "^10.1.4",
+    "@graphql-tools/utils": "^12.0.4",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "fastify": "^5.12.7",
+    "graphql": "^17.0.2",
+    "graphql-ws": "^6.4.0",
+    "ws": "^8.22.0",
+    "yaml": "^2.9.1"
+  }
+}
