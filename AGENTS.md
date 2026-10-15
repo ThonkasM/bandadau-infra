@@ -51,6 +51,7 @@ verdad), `../bandadau-docs/docs/05-infraestructura/infraestructura.md` y
 | `seed/` `smoke/` | Node ESM sin dependencias; `seed/lib` es compartido. `seed.mjs` carga lo básico y `extra.mjs` los datos de demo ampliados (9 usuarios con perfil, seguidores, grupos, posts con foto generada, comentarios, reacciones, eventos con portada, recargas, inscripciones/tickets y limpieza de eventos de smoke); `node seed/seed.mjs --basic` omite lo ampliado |
 | `scripts/` | `gen-keys.sh`, `wait-healthy.sh`, `check-infra.sh`, `host-upstream.sh`, `clone-all.sh`, `create-github-repos.sh` |
 | `secrets/` | PEM de desarrollo generados por `make keys` (git-ignored) |
+| `mock/` | Gateway mock (Fastify + graphql) que imita `api.*` desde `bandadau-docs/contracts/`; `make mock*` |
 | `n8n/` | workflows JSON (fase 2) — ver `n8n/AGENTS.md` |
 | `ci/templates/` | plantillas de GitHub Actions por repo (copiar a `<repo>/.github/workflows/ci.yml`) |
 | *(pendiente, fases posteriores)* | `observability/` (dashboards), `load/` (k6), `aws/` (CloudFormation, scripts de despliegue), `ci/actions/` |
@@ -67,6 +68,7 @@ make host S=<svc>        make unhost S=<svc>   # redirige un servicio a tu IDE (
 make check-infra         # verifica el perfil infra (salud, colas, bases, tablas, buckets, rutas)
 make validate            # compose config + sintaxis de scripts + seed/smoke
 make urls                # URLs, puertos y credenciales de demo
+make mock / mock-stop / mock-test   # gateway mock Node en :4010 (sin Docker) para frontends; ver mock/README.md
 ```
 
 `PROJECT=<nombre>` cambia el nombre del proyecto Compose (pruebas en paralelo sin tocar el stack principal).

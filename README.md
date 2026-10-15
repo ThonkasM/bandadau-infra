@@ -23,6 +23,7 @@ make setup      # verifica herramientas, corepack, build de bandadau-shared, lla
 make up         # infra + 8 servicios (construye las imágenes desde los repos hermanos) y espera a que estén healthy
 make seed       # universidades, usuarios demo, créditos, grupo, posts y 3 eventos
 make smoke      # humo de la fase 1 (tabla ✓/✗, sale ≠ 0 si algo falla)
+make mock       # (opcional) gateway mock en :4010 para desarrollar frontends sin backend; make mock-stop / make mock-test (ver mock/README.md)
 ```
 
 Solo infraestructura (para correr servicios en tu IDE): `make up-infra`. Con Grafana/OTLP: `make up-obs`.
@@ -93,9 +94,9 @@ los `AGENTS.md` de cada servicio y de `entornos-y-variables.md`). Puntos de inte
 
 - `JWKS_URL=http://identity-service:7001/.well-known/jwks.json`, `JWT_ISSUER=http://api.${BASE_DOMAIN}`.
 - identity: `JWT_PRIVATE_KEY_PATH=/run/secrets/jwt-private.pem` (`./secrets` montado **de lectura y escritura**: `make keys` pre-genera una llave RS256 PKCS#8; si el archivo no existe, identity la genera ahí), `SERVICE_CLIENTS=id:secret,…` (incluye `bandada-seed`), `SMTP_HOST=mailpit`, `SPRING_PROFILES_ACTIVE=dev`.
-- ticketing: `QR_SIGNING_KEY_PATH=/run/secrets/qr-es256.pem` (EC P-256 PKCS#8, montado de solo lectura; `make keys`), `QR_SIGNING_KID=tk-2026-10`, `QR_KEY_ID=dev-1`, `CHAOS_TICKETING_FAIL`.
-- wallet: `APP_KEY` (`WALLET_APP_KEY`), `SIMULATE_PAYMENT_ENABLED` **y** `PAYMENT_SIMULATOR_ENABLED` **y** `PAYMENT_GATEWAY=simulated` (los tres nombres aparecen en el contrato/AGENTS: acepta el que uses), `TOPUP_PACKAGES=CREDITS_20,CREDITS_50,CREDITS_100`. Procesos auxiliares: `php artisan wallet:consume-commands` y `wallet:relay-outbox` (configurables con `WALLET_WORKER_CMD` / `WALLET_RELAY_CMD`).
-- notification: `APP_KEY` (`NOTIFICATION_APP_KEY`), `MAIL_HOST=mailpit`, `PUSH_ENABLED=false`; auxiliares `php artisan notifications:consume` y `notifications:relay-outbox` (`NOTIFICATION_WORKER_CMD` / `NOTIFICATION_RELAY_CMD`; el nombre del relay es una suposición: ajústalo al comando real).
+- ticketing: `QR_SIGNING_KEY_PATH=/run/secrets/qr-es256.pem` (EC P-256 PKCS#8, montado de solo lectura; `make keys`), `QR_SIGNING_KID=tk-2026-10`, `CHAOS_TICKETING_FAIL`.
+- wallet: `APP_KEY` (`WALLET_APP_KEY`), `PAYMENT_SIMULATOR_ENABLED` y `PAYMENT_GATEWAY=simulated` (el alias `SIMULATE_PAYMENT_ENABLED` se retiró: ningún servicio lo lee), `TOPUP_PACKAGES=CREDITS_20,CREDITS_50,CREDITS_100`. Procesos auxiliares: `php artisan wallet:consume-commands` y `wallet:relay-outbox` (configurables con `WALLET_WORKER_CMD` / `WALLET_RELAY_CMD`).
+- notification: `APP_KEY` (`NOTIFICATION_APP_KEY`), `MAIL_HOST=mailpit`, `PUSH_ENABLED=false`; auxiliares `php artisan notifications:consume` y `notifications:relay-outbox` (`NOTIFICATION_WORKER_CMD` / `NOTIFICATION_RELAY_CMD`; ambos comandos existen en el servicio).
 - media: `MODERATION_MODE=allow-all|manual`, `S3_ENDPOINT=http://minio:9000`, `S3_PUBLIC_ENDPOINT=http://localhost:9000`, `S3_ACCESS_KEY_ID=media-svc`.
 - Todos: `OTEL_SDK_DISABLED=true` salvo `make up-obs`; `CORS_ORIGINS` (si el servicio añade CORS propio para el acceso directo `localhost:700x`, Traefik sobrescribe la cabecera `Access-Control-Allow-Origin` en el camino `api.*`, no se duplica).
 - Los healthchecks de Compose llaman a `GET /health/ready` con `wget` o `curl` (la imagen debe traer uno de los dos).
@@ -174,4 +175,4 @@ bandadau-infra/
 `ci/templates/<repo>.yml` es la plantilla para copiar a `<repo>/.github/workflows/ci.yml` (lint + test + build, sin despliegue).
 Cada una hace *checkout* hermano de `bandadau-shared` y `bandadau-docs` (secreto opcional `CI_REPOS_TOKEN` si los repos son
 privados). El CI de este repo (`.github/workflows/ci.yml`) valida la configuración, levanta el perfil `infra` real y corre
-`make check-infra`; el job `stack` (pila completa + seed + smoke) es manual/semanal hasta que existan los 8 servicios.
+`make check-infra`; el job `stack` (pila completa + seed + smoke) es manual/semanal (los servicios ya existen; no corre en cada push por duración).

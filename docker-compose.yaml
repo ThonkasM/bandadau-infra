@@ -396,6 +396,7 @@ services:
       DATABASE_PASSWORD: ${IDENTITY_DB_PASSWORD:-identity_dev}
       JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH:-/run/secrets/jwt-private.pem}
       JWT_KEY_ID: ${JWT_KEY_ID:-dev-2026-10}
+      JWT_KEK: ${JWT_KEK:-dev-only-kek-change-me}   # cifra la llave privada en signing_keys; en producción: SSM, >= 32 caracteres
       ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-PT15M}
       REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL:-P30D}
       HANDOFF_CODE_TTL: ${HANDOFF_CODE_TTL:-PT60S}
@@ -513,6 +514,7 @@ services:
       DATABASE_USER: events
       DATABASE_PASSWORD: ${EVENTS_DB_PASSWORD:-events_dev}
       MEDIA_SERVICE_URL: http://media-service:7003
+      COVER_CHECK: ${COVER_CHECK:-on}   # valida coverMediaId contra media (cliente de servicio events-service en SERVICE_CLIENTS)
       SERVICE_CLIENT_ID: events-service
       SERVICE_CLIENT_SECRET: ${EVENTS_SERVICE_CLIENT_SECRET:-dev-secret-events}
       SAGA_STEP_TIMEOUT: ${SAGA_STEP_TIMEOUT:-PT30S}
@@ -550,7 +552,6 @@ services:
       PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-dev-webhook-secret}
       PAYMENT_CHECKOUT_BASE_URL: ${PAYMENT_CHECKOUT_BASE_URL:-http://app.bandada.localhost/wallet/checkout}
       PAYMENT_GATEWAY: simulated
-      SIMULATE_PAYMENT_ENABLED: ${SIMULATE_PAYMENT_ENABLED:-true}
       PAYMENT_SIMULATOR_ENABLED: ${PAYMENT_SIMULATOR_ENABLED:-true}
       TOPUP_PACKAGES: ${TOPUP_PACKAGES:-CREDITS_20,CREDITS_50,CREDITS_100}
       CHAOS_WALLET_DELAY_MS: ${CHAOS_WALLET_DELAY_MS:-0}
@@ -616,7 +617,6 @@ services:
       SERVICE_CLIENT_SECRET: ${TICKETING_SERVICE_CLIENT_SECRET:-dev-secret-ticketing}
       QR_SIGNING_KEY_PATH: ${QR_SIGNING_KEY_PATH:-/run/secrets/qr-es256.pem}
       QR_SIGNING_KID: ${QR_SIGNING_KID:-tk-2026-10}
-      QR_KEY_ID: ${QR_KEY_ID:-dev-1}
       CHAOS_TICKETING_FAIL: ${CHAOS_TICKETING_FAIL:-false}
     volumes:
       - ./secrets/qr-es256.pem:/run/secrets/qr-es256.pem:ro
@@ -771,6 +771,10 @@ services:
       WALLET_SERVICE_URL: http://wallet-service:7005
       TICKETING_SERVICE_URL: http://ticketing-service:7006
       INSIGHTS_SERVICE_URL: http://insights-service:7008
+      NOTIFICATION_SERVICE_URL: http://notification-service:7007
+      RABBITMQ_MANAGEMENT_URL: http://rabbitmq:15672
+      RABBITMQ_MANAGEMENT_USER: ${RABBITMQ_MONITOR_USER:-monitor}
+      RABBITMQ_MANAGEMENT_PASSWORD: ${RABBITMQ_MONITOR_PASSWORD:-monitor_dev}
       SERVICE_CLIENT_ID: admin-gateway
       SERVICE_CLIENT_SECRET: ${ADMIN_GATEWAY_SERVICE_CLIENT_SECRET:-dev-secret-admin-gateway}
       GRAPHQL_MAX_DEPTH: ${GRAPHQL_MAX_DEPTH:-7}

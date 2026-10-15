@@ -36,7 +36,7 @@ jobs:
       - if: always()
         run: make reset
 
-  # Pila completa de la fase 1 (cuando los 8 servicios existan): se activa a mano o por cron.
+  # Pila completa de la fase 1 (los 9 servicios ya existen; tarda): se activa a mano o por cron.
   stack:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
