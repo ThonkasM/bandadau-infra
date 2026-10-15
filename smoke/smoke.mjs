@@ -59,14 +59,14 @@ async function topUp(token, pkg, label) {
   return { key, topUp: first.json, label };
 }
 
-async function createPaidEvent(orgToken, { capacity, priceCredits, title }) {
+async function createPaidEvent(orgToken, { capacity, priceCredits, title, startsInMs = 5 * 86400000 }) {
   const c = await api('POST', '/events', {
     token: orgToken,
     idempotencyKey: uuidv7(),
     body: {
       title: `${title} ${run}`,
       description: 'Evento creado por make smoke; puede borrarse.',
-      startsAt: new Date(Date.now() + 5 * 86400000).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+      startsAt: new Date(Date.now() + startsInMs).toISOString().replace(/\.\d{3}Z$/, 'Z'),
       venue: 'Aula de pruebas',
       capacity,
       priceCredits,
@@ -255,6 +255,25 @@ if (only !== 'chaos') {
     }, { timeoutMs: 30000 });
     expect(n, 'sin notificaciones tras 30 s');
     return `${n.length} notificación(es)`;
+  });
+  await step('Validación de tickets: solo el organizador del evento (org2 → 403, org → 200)', async () => {
+    expect(org, 'sin sesión del organizador');
+    const r2 = await login('org2@umsa.edu.bo', password);
+    expect(r2.ok && r2.json.user.roles.includes('ORGANIZER'), `login org2 ${problem(r2)} — ¿ejecutaste make seed?`);
+    // evento gratuito que empieza en 60 min: la ventana de validación (startsAt − 2 h) ya está abierta
+    const ev = await createPaidEvent(org, { capacity: 5, priceCredits: 0, title: 'Smoke validación', startsInMs: 60 * 60000 });
+    const reg = await register(ctx.token, ev.id);
+    expect(reg.status === 202, `registerToEvent ${problem(reg)}`);
+    const done = await waitRegistration(ctx.token, reg.json.id, ['CONFIRMED', 'FAILED', 'CANCELLED']);
+    expect(done?.status === 'CONFIRMED' && done.ticketId, `inscripción terminó ${done?.status}`);
+    const t = await api('GET', `/tickets/${done.ticketId}`, { token: ctx.token });
+    expect(t.ok, `getTicket ${problem(t)}`);
+    const qrPayload = t.json.qrPayload;
+    const other = await api('POST', '/tickets/validate', { token: r2.json.accessToken, idempotencyKey: uuidv7(), body: { qrPayload } });
+    expect(other.status === 403 && other.json?.code === 'NOT_EVENT_ORGANIZER', `org2 esperaba 403 NOT_EVENT_ORGANIZER, ${problem(other)}`);
+    const own = await api('POST', '/tickets/validate', { token: org, idempotencyKey: uuidv7(), body: { qrPayload } });
+    expect(own.status === 200, `el organizador real esperaba 200, ${problem(own)}`);
+    return 'org2 403 NOT_EVENT_ORGANIZER · org 200';
   });
   await step('Cupo 1: segundo usuario recibe 409 EVENT_FULL', async () => {
     expect(org, 'sin sesión del organizador');

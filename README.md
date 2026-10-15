@@ -57,6 +57,7 @@ Usuarios de demo (`make seed`, contraseña de desarrollo **`Bandada#2026`**):
 | `admin@umsa.edu.bo` | ADMIN |
 | `mod@umsa.edu.bo` | MODERATOR |
 | `org@umsa.edu.bo` | ORGANIZER |
+| `org2@umsa.edu.bo` | ORGANIZER (segundo organizador: el smoke comprueba que no puede validar tickets de eventos de `org`) |
 | `lucia@umsa.edu.bo` (100 créditos) · `marco@umsa.edu.bo` | STUDENT |
 
 `make urls` imprime esta tabla (con tu `BASE_DOMAIN`).

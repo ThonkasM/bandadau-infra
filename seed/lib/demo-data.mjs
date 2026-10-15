@@ -8,6 +8,7 @@ export const USERS = [
   { key: 'admin', email: 'admin@umsa.edu.bo', roles: ['STUDENT', 'ADMIN'] },
   { key: 'mod', email: 'mod@umsa.edu.bo', roles: ['STUDENT', 'MODERATOR'] },
   { key: 'org', email: 'org@umsa.edu.bo', roles: ['STUDENT', 'ORGANIZER'] },
+  { key: 'org2', email: 'org2@umsa.edu.bo', roles: ['STUDENT', 'ORGANIZER'] }, // segundo organizador: el smoke prueba que NO puede validar tickets ajenos
   { key: 'lucia', email: 'lucia@umsa.edu.bo', roles: ['STUDENT'] },
   { key: 'marco', email: 'marco@umsa.edu.bo', roles: ['STUDENT'] },
 ];
