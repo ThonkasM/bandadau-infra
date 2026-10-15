@@ -324,27 +324,57 @@ services:
       N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
       N8N_PERSONALIZATION_ENABLED: "false"
       DB_TYPE: sqlite                      # SQLite propia en volumen (ADR-0016)
-      # credenciales de los workflows (fase 2): solo variables, nunca en el JSON
-      RABBITMQ_N8N_URL: amqp://n8n:${RABBITMQ_N8N_PASSWORD:-n8n_dev}@rabbitmq:5672
+      # --- fase 2: workflows importados al arrancar (n8n/scripts/entrypoint.sh) ---
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: "168"       # horas (7 días)
+      N8N_OWNER_PASSWORD_HASH: ${N8N_OWNER_PASSWORD_HASH:-}   # bcrypt; vacío = crear el propietario desde la UI
+      N8N_INSTANCE_OWNER_EMAIL: ${N8N_OWNER_EMAIL:-admin@bandada.localhost}
+      N8N_INSTANCE_OWNER_FIRST_NAME: ${N8N_OWNER_FIRST_NAME:-Bandada}
+      N8N_INSTANCE_OWNER_LAST_NAME: ${N8N_OWNER_LAST_NAME:-Admin}
+      # credenciales de los workflows: solo variables, nunca en el JSON
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_N8N_USER: n8n
+      RABBITMQ_N8N_PASSWORD: ${RABBITMQ_N8N_PASSWORD:-n8n_dev}
       N8N_SERVICE_CLIENT_ID: n8n
       N8N_SERVICE_CLIENT_SECRET: ${N8N_SERVICE_CLIENT_SECRET:-dev-secret-n8n}
       BANDADA_API_URL: ${BANDADA_API_URL:-http://api.bandada.localhost/api/v1}
+      BANDADA_IDENTITY_INTERNAL_URL: http://identity-service:7001
+      BANDADA_SOCIAL_INTERNAL_URL: http://social-service:7002
+      BANDADA_MEDIA_INTERNAL_URL: http://media-service:7003
+      BANDADA_EVENTS_INTERNAL_URL: http://events-service:7004
+      BANDADA_NOTIFICATION_INTERNAL_URL: http://notification-service:7007
+      BANDADA_INSIGHTS_INTERNAL_URL: http://insights-service:7008
+      BANDADA_ADMIN_URL: http://admin.${BASE_DOMAIN:-bandada.localhost}
+      BANDADA_APP_URL: http://app.${BASE_DOMAIN:-bandada.localhost}
+      N8N_PUBLIC_URL: http://localhost:${N8N_PORT:-5678}
+      N8N_WELCOME_DELAY: ${N8N_WELCOME_DELAY:-3600}            # segundos de espera de wf-01 (0 en pruebas)
+      N8N_REPORT_POLL_SECONDS: ${N8N_REPORT_POLL_SECONDS:-60}
+      N8N_STAFF_RECIPIENTS: ${N8N_STAFF_RECIPIENTS:-}          # JSON; vacío = moderacion@ (es) y admin@ (en)
+      N8N_ERROR_EMAIL: ${N8N_ERROR_EMAIL:-devs@bandada.localhost}
+      MAIL_FROM: ${MAIL_FROM:-Bandada U <no-reply@bandada.localhost>}
       SMTP_HOST: mailpit
       SMTP_PORT: "1025"
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_STAFF_CHAT_ID: ${TELEGRAM_STAFF_CHAT_ID:-}
+    entrypoint: ["/bin/sh", "/import/scripts/entrypoint.sh"]
     volumes:
       - n8n-data:/home/node/.n8n
+      - ./n8n/workflows:/import/workflows:ro
+      - ./n8n/credentials:/import/credentials:ro
+      - ./n8n/scripts:/import/scripts:ro
     depends_on:
       rabbitmq:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5678/healthz | grep -q ok"]
       interval: 10s
       timeout: 5s
       retries: 12
-      start_period: 30s
-    mem_limit: 768m
+      start_period: 60s
+    mem_limit: 1g
 
   # ===========================================================================
   # Perfil services  (build desde los repos hermanos; las imágenes las escriben los dueños de cada servicio)
@@ -441,7 +471,7 @@ services:
       S3_SECRET_ACCESS_KEY: ${MEDIA_S3_SECRET_KEY:-media_svc_dev_pw}
       S3_BUCKET_MEDIA: ${S3_BUCKET_MEDIA:-bandada-media}
       S3_BUCKET_MODELS: ${S3_BUCKET_MODELS:-bandada-models}
-      UPLOAD_URL_TTL_SECONDS: ${UPLOAD_URL_TTL_SECONDS:-300}
+      UPLOAD_URL_TTL_SECONDS: ${UPLOAD_URL_TTL_SECONDS:-900}
       MAX_IMAGE_BYTES: ${MAX_IMAGE_BYTES:-10485760}
       MAX_VIDEO_BYTES: ${MAX_VIDEO_BYTES:-52428800}
       MODEL_NSFW_VERSION: ${MODEL_NSFW_VERSION:-1.0.0}
@@ -598,36 +628,6 @@ services:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7006/health/ready >/dev/null 2>&1 || curl -fsS http://127.0.0.1:7006/health/ready >/dev/null"]
     mem_limit: 256m
 
-  notification-service:
-    <<: *base
-    image: bandada/notification-service:${IMAGE_TAG:-local}
-    profiles: [services]
-    build:
-      context: ../bandadau-backend/services/notification-service
-    ports:
-      - "${NOTIFICATION_HOST_PORT:-7007}:7007"
-    environment: &notification-env
-      <<: [*service-env, *laravel-env]
-      APP_PORT: "7007"
-      APP_KEY: ${NOTIFICATION_APP_KEY}
-      OTEL_SERVICE_NAME: notification-service
-      NOTIFICATIONS_TABLE: ${NOTIFICATIONS_TABLE:-bandada-notifications}
-      NOTIFICATION_TTL_DAYS: ${NOTIFICATION_TTL_DAYS:-90}
-      MAIL_MAILER: ${MAIL_MAILER:-smtp}
-      MAIL_HOST: mailpit
-      MAIL_PORT: "1025"
-      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@bandada.localhost}
-      PUSH_ENABLED: ${PUSH_ENABLED:-false}
-      EXPO_PUSH_URL: ${EXPO_PUSH_URL:-https://exp.host/--/api/v2/push/send}
-      EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN:-}
-      APP_DEEP_LINK_BASE: ${APP_DEEP_LINK_BASE:-http://app.bandada.localhost}
-    depends_on:
-      rabbitmq: { condition: service_healthy }
-      dynamodb-init: { condition: service_completed_successfully }
-      mailpit: { condition: service_healthy }
-    healthcheck:
-      <<: *hc-fast
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7007/health/ready >/dev/null 2>&1 || curl -fsS http://127.0.0.1:7007/health/ready >/dev/null"]
   insights-service:
     <<: *base
     image: bandada/insights-service:${IMAGE_TAG:-local}
@@ -686,6 +686,36 @@ services:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7008/health/ready >/dev/null 2>&1 || curl -fsS http://127.0.0.1:7008/health/ready >/dev/null"]
     mem_limit: 384m
 
+  notification-service:
+    <<: *base
+    image: bandada/notification-service:${IMAGE_TAG:-local}
+    profiles: [services]
+    build:
+      context: ../bandadau-backend/services/notification-service
+    ports:
+      - "${NOTIFICATION_HOST_PORT:-7007}:7007"
+    environment: &notification-env
+      <<: [*service-env, *laravel-env]
+      APP_PORT: "7007"
+      APP_KEY: ${NOTIFICATION_APP_KEY}
+      OTEL_SERVICE_NAME: notification-service
+      NOTIFICATIONS_TABLE: ${NOTIFICATIONS_TABLE:-bandada-notifications}
+      NOTIFICATION_TTL_DAYS: ${NOTIFICATION_TTL_DAYS:-90}
+      MAIL_MAILER: ${MAIL_MAILER:-smtp}
+      MAIL_HOST: mailpit
+      MAIL_PORT: "1025"
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@bandada.localhost}
+      PUSH_ENABLED: ${PUSH_ENABLED:-false}
+      EXPO_PUSH_URL: ${EXPO_PUSH_URL:-https://exp.host/--/api/v2/push/send}
+      EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN:-}
+      APP_DEEP_LINK_BASE: ${APP_DEEP_LINK_BASE:-http://app.bandada.localhost}
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+      dynamodb-init: { condition: service_completed_successfully }
+      mailpit: { condition: service_healthy }
+    healthcheck:
+      <<: *hc-fast
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7007/health/ready >/dev/null 2>&1 || curl -fsS http://127.0.0.1:7007/health/ready >/dev/null"]
     mem_limit: 256m
 
   notification-worker:
