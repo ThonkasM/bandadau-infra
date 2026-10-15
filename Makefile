@@ -136,6 +136,7 @@ validate: env ## docker compose config + sintaxis de scripts + render de definit
 	@for f in seed/*.mjs seed/lib/*.mjs smoke/*.mjs n8n/scripts/*.mjs; do node --check $$f || exit 1; done
 	@node n8n/scripts/validate.mjs
 	@sh -n n8n/scripts/entrypoint.sh
+	@for f in observability/dashboards/*.json observability/provisioning/alert-rules.yaml; do node -e 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8").replace(/^#.*\n/,""))' $$f || exit 1; done
 	@rabbitmq/render-definitions.sh .env.example >/dev/null && git diff --quiet rabbitmq/definitions.json || echo "AVISO: rabbitmq/definitions.json difiere de la plantilla con .env.example"
 	@echo "validate OK"
 

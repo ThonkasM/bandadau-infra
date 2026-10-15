@@ -815,6 +815,11 @@ services:
       TZ: ${TZ:-America/La_Paz}
     volumes:
       - lgtm-data:/data
+      # I-3: scrapes extra (RabbitMQ, Traefik), dashboards y reglas de alerta por provisioning de archivos
+      - ./observability/prometheus.yaml:/otel-lgtm/prometheus.yaml:ro
+      - ./observability/provisioning/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/bandada.yaml:ro
+      - ./observability/provisioning/alert-rules.yaml:/otel-lgtm/grafana/conf/provisioning/alerting/bandada-rules.yaml:ro
+      - ./observability/dashboards:/var/lib/bandada/dashboards:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/api/health"]
       interval: 15s

@@ -1,0 +1,11 @@
+apiVersion: 1
+providers:
+  - name: bandada
+    orgId: 1
+    folder: Bandada U
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/bandada/dashboards

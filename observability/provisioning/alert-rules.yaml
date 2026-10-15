@@ -1,0 +1,464 @@
+# Reglas de alerta aprovisionadas (JSON es YAML válido). Generado/mantenido con observability/README.md
+{
+  "apiVersion": 1,
+  "groups": [
+    {
+      "orgId": 1,
+      "name": "bandada-alerts",
+      "folder": "Bandada U",
+      "interval": "1m",
+      "rules": [
+        {
+          "uid": "saga-compensation-rate-high",
+          "title": "SagaCompensationRateHigh",
+          "condition": "C",
+          "for": "5m",
+          "noDataState": "OK",
+          "execErrState": "OK",
+          "isPaused": false,
+          "labels": {
+            "severity": "critical",
+            "team": "bandada"
+          },
+          "annotations": {
+            "summary": "Más del 25 % de las SAGAs de inscripción se compensan",
+            "description": "Tasa de compensación de la SAGA por encima de 25 % durante 5 min. Revisar wallet-service (saldo/timeouts) y ticketing-service (CHAOS_TICKETING_FAIL). Dashboard: Bandada U · SAGA."
+          },
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "sum(rate(saga_compensations_total[10m])) / clamp_min(sum(rate(saga_duration_seconds_count[10m])), 0.0001)",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "reduce",
+                "expression": "A",
+                "reducer": "last",
+                "datasource": {
+                  "type": "__expr__",
+                  "uid": "__expr__"
+                },
+                "settings": {
+                  "mode": "dropNN"
+                }
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "B",
+                "datasource": {
+                  "type": "__expr__",
+                  "uid": "__expr__"
+                },
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0.25
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uid": "api-latency-p95-high",
+          "title": "ApiLatencyP95High",
+          "condition": "C",
+          "for": "5m",
+          "noDataState": "OK",
+          "execErrState": "OK",
+          "isPaused": false,
+          "labels": {
+            "severity": "warning",
+            "team": "bandada"
+          },
+          "annotations": {
+            "summary": "Latencia p95 de {{ $labels.service }} por encima de 1 s",
+            "description": "p95 > 1 s durante 5 min medido en Traefik. Dashboard: Bandada U · RED por servicio."
+          },
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "histogram_quantile(0.95, sum by (le,service)(rate(traefik_service_request_duration_seconds_bucket{service=~\"(identity|social|media|events|wallet|ticketing|notification|insights|admin-gateway)@.*\"}[5m])))",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "reduce",
+                "expression": "A",
+                "reducer": "last",
+                "datasource": {
+                  "type": "__expr__",
+                  "uid": "__expr__"
+                },
+                "settings": {
+                  "mode": "dropNN"
+                }
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "B",
+                "datasource": {
+                  "type": "__expr__",
+                  "uid": "__expr__"
+                },
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        1
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uid": "api-error-rate-high",
+          "title": "ApiErrorRateHigh",
+          "condition": "C",
+          "for": "5m",
+          "noDataState": "OK",
+          "execErrState": "OK",
+          "isPaused": false,
+          "labels": {
+            "severity": "warning",
+            "team": "bandada"
+          },
+          "annotations": {
+            "summary": "Más del 5 % de respuestas 5xx en {{ $labels.service }}",
+            "description": "Tasa de errores 5xx > 5 % durante 5 min. Con el servicio caído Traefik responde 502/503."
+          },
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "sum by (service)(rate(traefik_service_requests_total{service=~\"(identity|social|media|events|wallet|ticketing|notification|insights|admin-gateway)@.*\",code=~\"5..\"}[5m])) / clamp_min(sum by (service)(rate(traefik_service_requests_total{service=~\"(identity|social|media|events|wallet|ticketing|notification|insights|admin-gateway)@.*\"}[5m])), 0.01)",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "reduce",
+                "expression": "A",
+                "reducer": "last",
+                "datasource": {
+                  "type": "__expr__",
+                  "uid": "__expr__"
+                },
+                "settings": {
+                  "mode": "dropNN"
+                }
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "B",
+                "datasource": {
+                  "type": "__expr__",
+                  "uid": "__expr__"
+                },
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0.05
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uid": "dlq-has-messages",
+          "title": "DlqHasMessages",
+          "condition": "C",
+          "for": "1m",
+          "noDataState": "OK",
+          "execErrState": "OK",
+          "isPaused": false,
+          "labels": {
+            "severity": "critical",
+            "team": "bandada"
+          },
+          "annotations": {
+            "summary": "La cola {{ $labels.queue }} tiene mensajes",
+            "description": "Hay mensajes muertos (agotaron los 3 reintentos). Inspeccionar en RabbitMQ :15672 y corregir antes de reprocesar. Dashboard: Bandada U · RabbitMQ."
+          },
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "sum by (queue)(rabbitmq_detailed_queue_messages{queue=~\".+\\\\.dlq\"})",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "reduce",
+                "expression": "A",
+                "reducer": "last",
+                "datasource": {
+                  "type": "__expr__",
+                  "uid": "__expr__"
+                },
+                "settings": {
+                  "mode": "dropNN"
+                }
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "B",
+                "datasource": {
+                  "type": "__expr__",
+                  "uid": "__expr__"
+                },
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uid": "service-down",
+          "title": "ServiceDown",
+          "condition": "C",
+          "for": "2m",
+          "noDataState": "OK",
+          "execErrState": "OK",
+          "isPaused": false,
+          "labels": {
+            "severity": "critical",
+            "team": "bandada"
+          },
+          "annotations": {
+            "summary": "Sin consumidores en {{ $labels.queue }}: el servicio dueño no está corriendo",
+            "description": "La cola principal no tiene consumidores durante 2 min: el servicio (o su worker) está caído o desconectado."
+          },
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "sum by (queue)(rabbitmq_detailed_queue_consumers{queue=~\"(events-service\\\\.saga-replies|wallet-service\\\\.commands|ticketing-service\\\\.commands|social-service\\\\.events|media-service\\\\.events|notification-service\\\\.events|insights-service\\\\.analytics|n8n\\\\.automation)\"})",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "reduce",
+                "expression": "A",
+                "reducer": "last",
+                "datasource": {
+                  "type": "__expr__",
+                  "uid": "__expr__"
+                },
+                "settings": {
+                  "mode": "dropNN"
+                }
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "B",
+                "datasource": {
+                  "type": "__expr__",
+                  "uid": "__expr__"
+                },
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "lt",
+                      "params": [
+                        1
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uid": "scrape-target-down",
+          "title": "ScrapeTargetDown",
+          "condition": "C",
+          "for": "2m",
+          "noDataState": "OK",
+          "execErrState": "OK",
+          "isPaused": false,
+          "labels": {
+            "severity": "critical",
+            "team": "bandada"
+          },
+          "annotations": {
+            "summary": "Prometheus no puede scrapear {{ $labels.job }}",
+            "description": "El broker o Traefik no responden a la recolección de métricas."
+          },
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "up{job=~\"rabbitmq|rabbitmq-queues|traefik\"}",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "reduce",
+                "expression": "A",
+                "reducer": "last",
+                "datasource": {
+                  "type": "__expr__",
+                  "uid": "__expr__"
+                },
+                "settings": {
+                  "mode": "dropNN"
+                }
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "B",
+                "datasource": {
+                  "type": "__expr__",
+                  "uid": "__expr__"
+                },
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "lt",
+                      "params": [
+                        1
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -21,6 +21,14 @@ providers:
     directory: /etc/traefik/dynamic
     watch: true
 
+# Métricas RED por servicio para Grafana (observability/prometheus.yaml las scrapea en traefik:8080/metrics)
+metrics:
+  prometheus:
+    entryPoint: traefik
+    addEntryPointsLabels: true
+    addServicesLabels: true
+    buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
+
 log:
   level: INFO
 
