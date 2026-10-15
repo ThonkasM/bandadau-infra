@@ -1,0 +1,235 @@
+{
+  "active": true,
+  "connections": {
+    "Every hour": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Key",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Key": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Token",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "List events": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Registrations + build reminders",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Manual": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Key",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Registrations + build reminders": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send reminder",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Token": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "List events",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "id": "wf02reminder",
+  "name": "wf-02-recordatorio-evento",
+  "nodes": [
+    {
+      "id": "00e23ef7-bf6f-4f07-a547-cc43746869de",
+      "name": "Every hour",
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "position": [
+        0,
+        200
+      ],
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "id": "01aa74cc-621e-486a-aea0-e630337e26a6",
+      "name": "Manual",
+      "parameters": {},
+      "position": [
+        0,
+        400
+      ],
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1
+    },
+    {
+      "id": "656f767c-8563-40b8-a809-57d2b98cb61f",
+      "name": "Key",
+      "parameters": {
+        "jsCode": "\n// Ventana [ahora+23h, ahora+25h): cada evento cae en dos corridas; la idempotencia la da dedupeKey por usuario.\nconst now = Date.now(), H = 3600000;\nconst from = new Date(now + 23 * H).toISOString(), to = new Date(now + 25 * H).toISOString();\nreturn [{ json: { from, to, correlationId: 'n8n-wf02-' + new Date(now).toISOString().slice(0, 13) } }];\n"
+      },
+      "position": [
+        260,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "0b609616-6ed6-4bdf-a4b1-c0dc6715401c",
+      "name": "Token",
+      "parameters": {
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "wf90servicetoken"
+        }
+      },
+      "position": [
+        520,
+        300
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2
+    },
+    {
+      "id": "e78315cd-3df1-42a5-a39a-86a70ae72da7",
+      "maxTries": 3,
+      "name": "List events",
+      "parameters": {
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Token').first().json.token }}"
+            },
+            {
+              "name": "X-Correlation-Id",
+              "value": "={{ $('Key').first().json.correlationId }}"
+            }
+          ]
+        },
+        "method": "GET",
+        "options": {
+          "timeout": 10000
+        },
+        "sendHeaders": true,
+        "url": "={{ $env.BANDADA_EVENTS_INTERNAL_URL }}/internal/v1/events?status=PUBLISHED&limit=50&startsFrom={{ encodeURIComponent($('Key').first().json.from) }}&startsTo={{ encodeURIComponent($('Key').first().json.to) }}"
+      },
+      "position": [
+        780,
+        300
+      ],
+      "retryOnFail": true,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "waitBetweenTries": 1500
+    },
+    {
+      "id": "2ca41fe5-562c-4d99-a374-c1b26807a47f",
+      "name": "Registrations + build reminders",
+      "parameters": {
+        "jsCode": "\nconst token = $('Token').first().json.token, corr = $('Key').first().json.correlationId;\nconst base = $env.BANDADA_EVENTS_INTERNAL_URL;\nconst hash = (str) => { let h = 5381; for (const ch of str) h = ((h * 33) ^ ch.charCodeAt(0)) >>> 0; return h.toString(16); };\n\n// UUID determinista (v8) derivado de un texto: los servicios exigen Idempotency-Key con forma de UUID.\nfunction detUuid(str) {\n  let h1 = 0xdeadbeef, h2 = 0x41c6ce57, h3 = 0x9e3779b9, h4 = 0x85ebca6b;\n  for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i);\n    h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); h3 = Math.imul(h3 ^ c, 2246822507); h4 = Math.imul(h4 ^ c, 3266489909); }\n  h1 = Math.imul(h1 ^ (h2 >>> 15), 2246822507) ^ Math.imul(h3 ^ (h4 >>> 13), 3266489909);\n  h2 = Math.imul(h2 ^ (h3 >>> 15), 2246822507) ^ Math.imul(h4 ^ (h1 >>> 13), 3266489909);\n  h3 = Math.imul(h3 ^ (h4 >>> 15), 2246822507) ^ Math.imul(h1 ^ (h2 >>> 13), 3266489909);\n  h4 = Math.imul(h4 ^ (h1 >>> 15), 2246822507) ^ Math.imul(h2 ^ (h3 >>> 13), 3266489909);\n  const hex = [h1, h2, h3, h4].map((n) => (n >>> 0).toString(16).padStart(8, '0')).join('');\n  return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-8' + hex.slice(13, 16) + '-a' + hex.slice(17, 20) + '-' + hex.slice(20, 32);\n}\n\nconst out = [];\nfor (const ev of ($json.items || [])) {\n  const userIds = [];\n  let cursor = null;\n  do {\n    const q = '?status=CONFIRMED&limit=50' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : '');\n    const page = await this.helpers.httpRequest({ method: 'GET', url: base + '/internal/v1/events/' + ev.id + '/registrations' + q, headers: { Authorization: 'Bearer ' + token, 'X-Correlation-Id': corr }, json: true, timeout: 10000 });\n    for (const r of (page.items || [])) userIds.push(r.userId);\n    cursor = page.nextCursor || null;\n  } while (cursor);\n  const unique = [...new Set(userIds)].sort();\n  if (!unique.length) continue;\n  const laPaz = new Date(new Date(ev.startsAt).getTime() - 4 * 3600 * 1000).toISOString().replace('T', ' ').slice(0, 16) + ' (La Paz)';\n  out.push({ json: {\n    idemKey: detUuid('n8n:wf-02:' + ev.id + ':' + hash(unique.join(','))),\n    body: { userIds: unique, type: 'EVENT_REMINDER', dedupeKey: 'reminder:' + ev.id,\n      params: { eventTitle: ev.title, startsAt: ev.startsAt, startsAtText: laPaz, venue: ev.venue || '' },\n      data: { eventId: ev.id, deepLink: 'bandada://events/' + ev.id } },\n  } });\n}\nreturn out;\n"
+      },
+      "position": [
+        1040,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "7eec773d-7120-42d2-ad41-e519481a0bbe",
+      "maxTries": 3,
+      "name": "Send reminder",
+      "parameters": {
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Token').first().json.token }}"
+            },
+            {
+              "name": "X-Correlation-Id",
+              "value": "={{ $('Key').first().json.correlationId }}"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $json.idemKey }}"
+            }
+          ]
+        },
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "method": "POST",
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "sendHeaders": true,
+        "specifyBody": "json",
+        "url": "={{ $env.BANDADA_NOTIFICATION_INTERNAL_URL }}/internal/v1/notifications"
+      },
+      "position": [
+        1300,
+        300
+      ],
+      "retryOnFail": true,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "waitBetweenTries": 1500
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "errorWorkflow": "wf99errorhandler",
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "timezone": "America/La_Paz"
+  },
+  "tags": []
+}

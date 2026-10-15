@@ -1,0 +1,348 @@
+{
+  "active": true,
+  "connections": {
+    "Already sent?": {
+      "main": [
+        [],
+        [
+          {
+            "index": 0,
+            "node": "Wait delay",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Compose email (es/en)": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Email",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Dedupe": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Already sent?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Key",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Key": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Dedupe",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Profile": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Suggested groups",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Suggested groups": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Compose email (es/en)",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Token": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Profile",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Wait delay": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Token",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "id": "wf01welcome",
+  "name": "wf-01-bienvenida",
+  "nodes": [
+    {
+      "id": "e5db8944-ac3c-4f70-a493-c10ec33ccd80",
+      "name": "Execute Workflow Trigger",
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "position": [
+        0,
+        300
+      ],
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "62782d9d-5160-4c30-a5ae-40b7356e1e4c",
+      "name": "Key",
+      "parameters": {
+        "jsCode": "\nconst ce = $input.first().json;\nreturn [{ json: { key: 'wf-01:' + ce.data.userId, correlationId: ce.correlationid || ('n8n-' + $execution.id), event: ce } }];\n"
+      },
+      "position": [
+        260,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "401ab685-f5e8-4d8b-a0e4-6a568372eb38",
+      "name": "Dedupe",
+      "parameters": {
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "wf91dedupe"
+        }
+      },
+      "position": [
+        520,
+        300
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2
+    },
+    {
+      "id": "45d7cfd1-878f-4666-ad58-aa25e4f36453",
+      "name": "Already sent?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "ae2a3c33-f635-436a-a1aa-ae8c50049026",
+              "leftValue": "={{ $json.seen }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          }
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "position": [
+        780,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "7f2f7082-87b2-42c3-a1f9-99fb7234c370",
+      "name": "Wait delay",
+      "parameters": {
+        "amount": "={{ Number($env.N8N_WELCOME_DELAY ?? 3600) }}",
+        "resume": "timeInterval",
+        "unit": "seconds"
+      },
+      "position": [
+        1040,
+        300
+      ],
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "webhookId": "b46be46c-8726-42ca-a59d-3ed88e72253e"
+    },
+    {
+      "id": "33f5ddad-e797-47fa-a55a-f8b9fa3099f2",
+      "name": "Token",
+      "parameters": {
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "wf90servicetoken"
+        }
+      },
+      "position": [
+        1300,
+        300
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2
+    },
+    {
+      "id": "6d715c96-cce3-409e-a0b2-db2b3e1424ff",
+      "maxTries": 3,
+      "name": "Profile",
+      "parameters": {
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Token').first().json.token }}"
+            },
+            {
+              "name": "X-Correlation-Id",
+              "value": "={{ $('Key').first().json.correlationId }}"
+            }
+          ]
+        },
+        "method": "GET",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        },
+        "sendHeaders": true,
+        "url": "={{ $env.BANDADA_SOCIAL_INTERNAL_URL }}/internal/v1/profiles/{{ $('Key').first().json.event.data.userId }}"
+      },
+      "position": [
+        1560,
+        300
+      ],
+      "retryOnFail": true,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "waitBetweenTries": 1500
+    },
+    {
+      "id": "764308fd-d817-44f4-a00a-118d36662df6",
+      "maxTries": 3,
+      "name": "Suggested groups",
+      "parameters": {
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Token').first().json.token }}"
+            },
+            {
+              "name": "X-Correlation-Id",
+              "value": "={{ $('Key').first().json.correlationId }}"
+            }
+          ]
+        },
+        "method": "GET",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        },
+        "sendHeaders": true,
+        "url": "={{ $env.BANDADA_SOCIAL_INTERNAL_URL }}/internal/v1/groups?limit=3{{ $('Profile').first().json.career ? '&career=' + encodeURIComponent($('Profile').first().json.career) : '' }}"
+      },
+      "position": [
+        1820,
+        300
+      ],
+      "retryOnFail": true,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "waitBetweenTries": 1500
+    },
+    {
+      "id": "8b165638-3d0f-4f68-a4c7-5af2b2bb0d93",
+      "name": "Compose email (es/en)",
+      "parameters": {
+        "jsCode": "\n\nconst DEFAULT_STAFF = [\n  { email: 'moderacion@bandada.localhost', locale: 'es', roles: ['MODERATOR'] },\n  { email: 'admin@bandada.localhost', locale: 'en', roles: ['ADMIN'] },\n];\nfunction staff(role) {\n  let list = null;\n  try { list = JSON.parse($env.N8N_STAFF_RECIPIENTS || ''); } catch (e) { list = null; }\n  if (!Array.isArray(list)) list = DEFAULT_STAFF;\n  return list.filter((r) => (r.roles || []).includes(role));\n}\nconst esc = (s) => String(s ?? '').replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c]));\nconst layout = (title, bodyHtml) => '<div style=\"font-family:Arial,sans-serif;max-width:560px;margin:auto\"><h2 style=\"color:#4f46e5\">' + esc(title) + '</h2>' + bodyHtml + '<hr><p style=\"color:#888;font-size:12px\">Bandada U</p></div>';\nconst laPaz = (iso) => new Date(new Date(iso).getTime() - 4 * 3600 * 1000).toISOString().replace('T', ' ').slice(0, 16) + ' (La Paz)';\n\nconst d = $('Key').first().json.event.data;\nconst locale = d.locale === 'en' ? 'en' : 'es';\nconst groups = ($json.items || []).slice(0, 3);\nconst app = $env.BANDADA_APP_URL || 'http://app.bandada.localhost';\nconst T = {\n  es: { subject: '¡Bienvenido a Bandada U, ' + d.displayName + '!', hi: 'Hola ' + d.displayName + ', tu cuenta está lista.', intro: 'Bandada U es la red de estudiantes de tu universidad: eventos, grupos de estudio y mucho más.', gh: 'Grupos que podrían interesarte', cta: 'Abrir Bandada U' },\n  en: { subject: 'Welcome to Bandada U, ' + d.displayName + '!', hi: 'Hi ' + d.displayName + ', your account is ready.', intro: 'Bandada U is your university student network: events, study groups and more.', gh: 'Groups you might like', cta: 'Open Bandada U' },\n}[locale];\nconst gHtml = groups.length ? '<h3>' + T.gh + '</h3><ul>' + groups.map((g) => '<li>' + esc(g.name) + (g.subject ? ' — ' + esc(g.subject) : '') + '</li>').join('') + '</ul>' : '';\nconst gText = groups.length ? '\\n\\n' + T.gh + ':\\n' + groups.map((g) => '- ' + g.name).join('\\n') : '';\nreturn [{ json: {\n  to: d.email, locale, subject: T.subject,\n  html: layout(T.subject, '<p>' + esc(T.hi) + '</p><p>' + esc(T.intro) + '</p>' + gHtml + '<p><a href=\"' + esc(app) + '\">' + T.cta + '</a></p>'),\n  text: T.hi + '\\n' + T.intro + gText + '\\n\\n' + app,\n} }];\n"
+      },
+      "position": [
+        2080,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "credentials": {
+        "smtp": {
+          "id": "bandadaSmtp",
+          "name": "Bandada SMTP (Mailpit)"
+        }
+      },
+      "id": "1d7ea9ac-ac8b-4798-a6c6-2b119d6f2595",
+      "name": "Send Email",
+      "parameters": {
+        "emailFormat": "both",
+        "fromEmail": "={{ $env.MAIL_FROM || 'Bandada U <no-reply@bandada.localhost>' }}",
+        "html": "={{ $json.html }}",
+        "options": {},
+        "subject": "={{ $json.subject }}",
+        "text": "={{ $json.text }}",
+        "toEmail": "={{ $json.to }}"
+      },
+      "position": [
+        2340,
+        300
+      ],
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "errorWorkflow": "wf99errorhandler",
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "timezone": "America/La_Paz"
+  },
+  "tags": []
+}

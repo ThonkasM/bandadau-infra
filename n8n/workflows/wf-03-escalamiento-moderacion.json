@@ -1,0 +1,410 @@
+{
+  "active": true,
+  "connections": {
+    "Already sent?": {
+      "main": [
+        [],
+        [
+          {
+            "index": 0,
+            "node": "Compose staff emails (es/en)",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Author flags 24h": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Decide",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Compose staff emails (es/en)": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Email",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Decide": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Escalate?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Dedupe": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Already sent?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Dedupe key": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Dedupe",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Escalate?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Raise alert (insights)",
+            "type": "main"
+          },
+          {
+            "index": 0,
+            "node": "Dedupe key",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Key",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Key": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Token",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Token": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Author flags 24h",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "id": "wf03escalation",
+  "name": "wf-03-escalamiento-moderacion",
+  "nodes": [
+    {
+      "id": "bfd4f202-f5ac-4d49-a8f6-b6bb7f149e8a",
+      "name": "Execute Workflow Trigger",
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "position": [
+        0,
+        300
+      ],
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "3cfd2ace-0710-4010-a730-7e857e59f4e5",
+      "name": "Key",
+      "parameters": {
+        "jsCode": "\nconst ce = $input.first().json;\nreturn [{ json: { key: 'wf-03:' + ce.id, correlationId: ce.correlationid || ('n8n-' + $execution.id), event: ce } }];\n"
+      },
+      "position": [
+        260,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "9b757c51-a81b-4688-af51-f3b576e86b63",
+      "name": "Token",
+      "parameters": {
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "wf90servicetoken"
+        }
+      },
+      "position": [
+        520,
+        300
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2
+    },
+    {
+      "id": "3a05ea45-1cb8-45c3-a24b-70efd9c43980",
+      "maxTries": 3,
+      "name": "Author flags 24h",
+      "parameters": {
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Token').first().json.token }}"
+            },
+            {
+              "name": "X-Correlation-Id",
+              "value": "={{ $('Key').first().json.correlationId }}"
+            }
+          ]
+        },
+        "method": "GET",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        },
+        "sendHeaders": true,
+        "url": "={{ $env.BANDADA_MEDIA_INTERNAL_URL }}/internal/v1/media?status=FLAGGED&limit=50&ownerId={{ $('Key').first().json.event.data.ownerId }}&since={{ encodeURIComponent(new Date(Date.now() - 24 * 3600 * 1000).toISOString()) }}"
+      },
+      "position": [
+        780,
+        300
+      ],
+      "retryOnFail": true,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "waitBetweenTries": 1500
+    },
+    {
+      "id": "55f1102a-3d7a-4bbd-a7ff-d4eb240b2399",
+      "name": "Decide",
+      "parameters": {
+        "jsCode": "\n\n// UUID determinista (v8) derivado de un texto: los servicios exigen Idempotency-Key con forma de UUID.\nfunction detUuid(str) {\n  let h1 = 0xdeadbeef, h2 = 0x41c6ce57, h3 = 0x9e3779b9, h4 = 0x85ebca6b;\n  for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i);\n    h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); h3 = Math.imul(h3 ^ c, 2246822507); h4 = Math.imul(h4 ^ c, 3266489909); }\n  h1 = Math.imul(h1 ^ (h2 >>> 15), 2246822507) ^ Math.imul(h3 ^ (h4 >>> 13), 3266489909);\n  h2 = Math.imul(h2 ^ (h3 >>> 15), 2246822507) ^ Math.imul(h4 ^ (h1 >>> 13), 3266489909);\n  h3 = Math.imul(h3 ^ (h4 >>> 15), 2246822507) ^ Math.imul(h1 ^ (h2 >>> 13), 3266489909);\n  h4 = Math.imul(h4 ^ (h1 >>> 15), 2246822507) ^ Math.imul(h2 ^ (h3 >>> 13), 3266489909);\n  const hex = [h1, h2, h3, h4].map((n) => (n >>> 0).toString(16).padStart(8, '0')).join('');\n  return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-8' + hex.slice(13, 16) + '-a' + hex.slice(17, 20) + '-' + hex.slice(20, 32);\n}\n\nconst ev = $('Key').first().json.event, d = ev.data;\nconst n = Array.isArray($json.items) ? $json.items.length : 0;\nconst flagged24h = Math.max(n, 1);   // el propio medio cuenta aunque el listado aun no lo refleje\nconst escalate = Number(d.maxScore) >= 0.95 || flagged24h >= 3;\nreturn [{ json: { escalate, flagged24h, maxScore: d.maxScore, mediaId: d.mediaId, ownerId: d.ownerId, labels: d.labels || [], ceId: ev.id, alertKey: detUuid('n8n:wf-03:' + ev.id) } }];\n"
+      },
+      "position": [
+        1040,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "b15f268c-4e67-4d1d-a285-95b47efbdbaa",
+      "name": "Escalate?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "5d93369b-c8bd-4836-a87f-6978db73939a",
+              "leftValue": "={{ $json.escalate }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          }
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "position": [
+        1300,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "64d6f9dd-f0de-4c70-a8f2-8494b7d2d5fc",
+      "maxTries": 3,
+      "name": "Raise alert (insights)",
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Token').first().json.token }}"
+            },
+            {
+              "name": "X-Correlation-Id",
+              "value": "={{ $('Key').first().json.correlationId }}"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $json.alertKey }}"
+            }
+          ]
+        },
+        "jsonBody": "={{ JSON.stringify({ severity: 'WARNING', kind: 'MODERATION_ESCALATION', message: 'Medio ' + $json.mediaId + ' con puntaje ' + $json.maxScore + '; autor con ' + $json.flagged24h + ' contenidos marcados en 24 h.', details: { mediaId: $json.mediaId, authorId: $json.ownerId, maxScore: $json.maxScore, flaggedCount24h: $json.flagged24h }, source: 'N8N' }) }}",
+        "method": "POST",
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "sendHeaders": true,
+        "specifyBody": "json",
+        "url": "={{ $env.BANDADA_INSIGHTS_INTERNAL_URL }}/internal/v1/alerts"
+      },
+      "position": [
+        1560,
+        120
+      ],
+      "retryOnFail": true,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "waitBetweenTries": 1500
+    },
+    {
+      "id": "898608b9-c20c-43ce-ae41-c8c9efe0d5b6",
+      "name": "Dedupe key",
+      "parameters": {
+        "jsCode": "return [{ json: { key: 'wf-03:mail:' + $('Decide').first().json.ceId } }];"
+      },
+      "position": [
+        1560,
+        420
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "25a9f1de-6101-4b69-af94-cf338faa0344",
+      "name": "Dedupe",
+      "parameters": {
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "wf91dedupe"
+        }
+      },
+      "position": [
+        1820,
+        420
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2
+    },
+    {
+      "id": "b83c1585-60e1-45b4-a5f2-1eab08e48d22",
+      "name": "Already sent?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "ae2a3c33-f635-436a-a1aa-ae8c50049026",
+              "leftValue": "={{ $json.seen }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          }
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "position": [
+        2080,
+        420
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "afe67294-6978-4d34-ae81-52cfc322e159",
+      "name": "Compose staff emails (es/en)",
+      "parameters": {
+        "jsCode": "\n\nconst DEFAULT_STAFF = [\n  { email: 'moderacion@bandada.localhost', locale: 'es', roles: ['MODERATOR'] },\n  { email: 'admin@bandada.localhost', locale: 'en', roles: ['ADMIN'] },\n];\nfunction staff(role) {\n  let list = null;\n  try { list = JSON.parse($env.N8N_STAFF_RECIPIENTS || ''); } catch (e) { list = null; }\n  if (!Array.isArray(list)) list = DEFAULT_STAFF;\n  return list.filter((r) => (r.roles || []).includes(role));\n}\nconst esc = (s) => String(s ?? '').replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c]));\nconst layout = (title, bodyHtml) => '<div style=\"font-family:Arial,sans-serif;max-width:560px;margin:auto\"><h2 style=\"color:#4f46e5\">' + esc(title) + '</h2>' + bodyHtml + '<hr><p style=\"color:#888;font-size:12px\">Bandada U</p></div>';\nconst laPaz = (iso) => new Date(new Date(iso).getTime() - 4 * 3600 * 1000).toISOString().replace('T', ' ').slice(0, 16) + ' (La Paz)';\n\n\nasync function telegram(helpers, text) {\n  const token = $env.TELEGRAM_BOT_TOKEN, chat = $env.TELEGRAM_STAFF_CHAT_ID;\n  if (!token || !chat) return false;\n  await helpers.httpRequest({ method: 'POST', url: 'https://api.telegram.org/bot' + token + '/sendMessage', body: { chat_id: chat, text }, json: true, timeout: 10000 });\n  return true;\n}\n\nconst d = $('Decide').first().json;\nconst admin = $env.BANDADA_ADMIN_URL || 'http://admin.bandada.localhost';\nconst link = admin + '/moderation/' + d.mediaId;\nconst T = {\n  es: (r) => ({ subject: 'Escalamiento de moderación: medio ' + d.mediaId.slice(0, 8), body: 'Un medio requiere revisión urgente.\\nPuntaje máximo: ' + d.maxScore + '\\nMarcas del autor en 24 h: ' + d.flagged24h + '\\nEtiquetas: ' + d.labels.join(', ') + '\\nRevisar: ' + link }),\n  en: (r) => ({ subject: 'Moderation escalation: media ' + d.mediaId.slice(0, 8), body: 'A media item needs urgent review.\\nMax score: ' + d.maxScore + '\\nAuthor flags in 24 h: ' + d.flagged24h + '\\nLabels: ' + d.labels.join(', ') + '\\nReview: ' + link }),\n};\nconst out = staff('MODERATOR').map((r) => { const m = T[r.locale === 'en' ? 'en' : 'es'](r); return { json: { to: r.email, locale: r.locale || 'es', subject: m.subject, text: m.body, html: layout(m.subject, '<p>' + esc(m.body).replace(/\\n/g, '<br>') + '</p>') } }; });\ntry { await telegram(this.helpers, T.es().subject + '\\n' + T.es().body); } catch (e) { /* opcional */ }\nreturn out;\n"
+      },
+      "position": [
+        2340,
+        420
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "credentials": {
+        "smtp": {
+          "id": "bandadaSmtp",
+          "name": "Bandada SMTP (Mailpit)"
+        }
+      },
+      "id": "70bf9868-ff37-488b-a8c6-c0e0d6455167",
+      "name": "Send Email",
+      "parameters": {
+        "emailFormat": "both",
+        "fromEmail": "={{ $env.MAIL_FROM || 'Bandada U <no-reply@bandada.localhost>' }}",
+        "html": "={{ $json.html }}",
+        "options": {},
+        "subject": "={{ $json.subject }}",
+        "text": "={{ $json.text }}",
+        "toEmail": "={{ $json.to }}"
+      },
+      "position": [
+        2600,
+        420
+      ],
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "errorWorkflow": "wf99errorhandler",
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "timezone": "America/La_Paz"
+  },
+  "tags": []
+}

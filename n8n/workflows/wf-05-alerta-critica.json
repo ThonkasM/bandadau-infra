@@ -1,0 +1,235 @@
+{
+  "active": true,
+  "connections": {
+    "Already sent?": {
+      "main": [
+        [],
+        [
+          {
+            "index": 0,
+            "node": "Compose staff emails (es/en)",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Compose staff emails (es/en)": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Email",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Dedupe": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Already sent?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Dedupe key": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Dedupe",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Is CRITICAL?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Is CRITICAL?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Dedupe key",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "id": "wf05alert",
+  "name": "wf-05-alerta-critica",
+  "nodes": [
+    {
+      "id": "436ae318-59aa-4f1a-a399-68beefeec1e8",
+      "name": "Execute Workflow Trigger",
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "position": [
+        0,
+        300
+      ],
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "91d5116a-9cc0-4b41-aeb2-6edca6ffc85d",
+      "name": "Is CRITICAL?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "efe9e0a9-fb43-4935-a148-b6b67621a2c6",
+              "leftValue": "={{ $json.data.severity }}",
+              "operator": {
+                "operation": "equals",
+                "type": "string"
+              },
+              "rightValue": "CRITICAL"
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          }
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "position": [
+        260,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "b2914af1-5c35-45ed-a081-13fa6e9b014c",
+      "name": "Dedupe key",
+      "parameters": {
+        "jsCode": "const ce = $input.first().json; return [{ json: { key: 'wf-05:' + ce.data.alertId + ':' + ce.data.severity, event: ce } }];"
+      },
+      "position": [
+        520,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "8fc4eeaf-9b6c-4e3a-aaf0-beb55f48d261",
+      "name": "Dedupe",
+      "parameters": {
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "wf91dedupe"
+        }
+      },
+      "position": [
+        780,
+        300
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2
+    },
+    {
+      "id": "a3a77b14-2ca0-4b31-a10d-2d5e2cd8bd47",
+      "name": "Already sent?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "ae2a3c33-f635-436a-a1aa-ae8c50049026",
+              "leftValue": "={{ $json.seen }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          }
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "position": [
+        1040,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "f550406b-1aae-4203-a300-059e86c78aa2",
+      "name": "Compose staff emails (es/en)",
+      "parameters": {
+        "jsCode": "\n\nconst DEFAULT_STAFF = [\n  { email: 'moderacion@bandada.localhost', locale: 'es', roles: ['MODERATOR'] },\n  { email: 'admin@bandada.localhost', locale: 'en', roles: ['ADMIN'] },\n];\nfunction staff(role) {\n  let list = null;\n  try { list = JSON.parse($env.N8N_STAFF_RECIPIENTS || ''); } catch (e) { list = null; }\n  if (!Array.isArray(list)) list = DEFAULT_STAFF;\n  return list.filter((r) => (r.roles || []).includes(role));\n}\nconst esc = (s) => String(s ?? '').replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c]));\nconst layout = (title, bodyHtml) => '<div style=\"font-family:Arial,sans-serif;max-width:560px;margin:auto\"><h2 style=\"color:#4f46e5\">' + esc(title) + '</h2>' + bodyHtml + '<hr><p style=\"color:#888;font-size:12px\">Bandada U</p></div>';\nconst laPaz = (iso) => new Date(new Date(iso).getTime() - 4 * 3600 * 1000).toISOString().replace('T', ' ').slice(0, 16) + ' (La Paz)';\n\n\nasync function telegram(helpers, text) {\n  const token = $env.TELEGRAM_BOT_TOKEN, chat = $env.TELEGRAM_STAFF_CHAT_ID;\n  if (!token || !chat) return false;\n  await helpers.httpRequest({ method: 'POST', url: 'https://api.telegram.org/bot' + token + '/sendMessage', body: { chat_id: chat, text }, json: true, timeout: 10000 });\n  return true;\n}\n\nconst d = $('Dedupe key').first().json.event.data;\nconst admin = $env.BANDADA_ADMIN_URL || 'http://admin.bandada.localhost';\nconst link = admin + '/alerts/' + d.alertId;\nconst T = {\n  es: { subject: 'ALERTA CRÍTICA: ' + d.kind, body: d.message + '\\nTipo: ' + d.kind + '\\nVer en el panel: ' + link },\n  en: { subject: 'CRITICAL ALERT: ' + d.kind, body: d.message + '\\nKind: ' + d.kind + '\\nView in the admin panel: ' + link },\n};\ntry { await telegram(this.helpers, T.es.subject + '\\n' + T.es.body); } catch (e) { /* opcional */ }\nreturn staff('ADMIN').map((r) => { const m = T[r.locale === 'en' ? 'en' : 'es']; return { json: { to: r.email, subject: m.subject, text: m.body, html: layout(m.subject, '<p>' + esc(m.body).replace(/\\n/g, '<br>') + '</p>') } }; });\n"
+      },
+      "position": [
+        1300,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "credentials": {
+        "smtp": {
+          "id": "bandadaSmtp",
+          "name": "Bandada SMTP (Mailpit)"
+        }
+      },
+      "id": "d9411489-b340-4850-a4cd-08f758823003",
+      "name": "Send Email",
+      "parameters": {
+        "emailFormat": "both",
+        "fromEmail": "={{ $env.MAIL_FROM || 'Bandada U <no-reply@bandada.localhost>' }}",
+        "html": "={{ $json.html }}",
+        "options": {},
+        "subject": "={{ $json.subject }}",
+        "text": "={{ $json.text }}",
+        "toEmail": "={{ $json.to }}"
+      },
+      "position": [
+        1560,
+        300
+      ],
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "errorWorkflow": "wf99errorhandler",
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "timezone": "America/La_Paz"
+  },
+  "tags": []
+}

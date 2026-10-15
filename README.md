@@ -44,7 +44,7 @@ Solo infraestructura (para correr servicios en tu IDE): `make up-infra`. Con Gra
 | RabbitMQ UI | http://localhost:15672 · http://rabbit.bandada.localhost | `admin` / `admin` (AMQP 5672: `bandada` / `bandada`) |
 | MinIO consola / API S3 | http://localhost:9001 · http://localhost:9000 (`s3.bandada.localhost` vía Traefik) | `minio` / `minio_dev_pw` |
 | Mailpit (correos, códigos de verificación) | http://localhost:8025 · http://mail.bandada.localhost | SMTP `mailpit:1025` |
-| n8n | http://localhost:5678 · http://n8n.bandada.localhost | crea el propietario al abrirlo la primera vez; sin workflows en la fase 1 |
+| n8n | http://localhost:5678 · http://n8n.bandada.localhost | propietario `admin@bandada.localhost` / `Bandada-n8n-dev1` (variables `N8N_OWNER_*`); workflows de `n8n/` importados al arrancar — ver `n8n/README.md` |
 | Grafana (solo `make up-obs`) | http://localhost:3300 · http://grafana.bandada.localhost | `admin` / `admin`; OTLP 4317 / 4318 |
 | PostgreSQL | `127.0.0.1:5432` | `postgres`/`postgres`; `identity`/`identity_dev` (`identity_db`), `events`/`events_dev`, `wallet`/`wallet_dev` |
 | MongoDB (rs0) | `127.0.0.1:27017` | `mongodb://social:social_dev@localhost:27017/social?authSource=social&directConnection=true` · `media`/`media_dev` · root `root`/`mongo_dev` |

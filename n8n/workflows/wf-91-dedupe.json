@@ -1,0 +1,54 @@
+{
+  "active": true,
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Check and record key",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "id": "wf91dedupe",
+  "name": "wf-91-dedupe",
+  "nodes": [
+    {
+      "id": "3be67d5d-bd28-431e-a0f0-5f7a450c0e3f",
+      "name": "Execute Workflow Trigger",
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "position": [
+        0,
+        300
+      ],
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "cc4e796c-8003-4379-a27f-b99e0cb7c30d",
+      "name": "Check and record key",
+      "parameters": {
+        "jsCode": "\n// Entrada: { key }. Salida: { key, seen }. Solo para envios directos (SMTP/Telegram) que no pasan por Idempotency-Key.\nconst sd = $getWorkflowStaticData('global');\nsd.keys ??= [];\nconst out = [];\nfor (const item of $input.all()) {\n  const key = String(item.json.key);\n  const seen = sd.keys.some((k) => k.k === key);\n  if (!seen) { sd.keys.push({ k: key, t: Date.now() }); if (sd.keys.length > 2000) sd.keys.splice(0, sd.keys.length - 2000); }\n  out.push({ json: { key, seen } });\n}\nreturn out;\n"
+      },
+      "position": [
+        260,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "errorWorkflow": "wf99errorhandler",
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "timezone": "America/La_Paz"
+  },
+  "tags": []
+}

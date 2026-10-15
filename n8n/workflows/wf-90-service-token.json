@@ -1,0 +1,54 @@
+{
+  "active": true,
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Get token (cached)",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "id": "wf90servicetoken",
+  "name": "wf-90-service-token",
+  "nodes": [
+    {
+      "id": "cbe7932d-60a1-4c8e-ac03-a9fcdc340f76",
+      "name": "Execute Workflow Trigger",
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "position": [
+        0,
+        300
+      ],
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "99364d57-e346-49ca-ad6f-215ffa6a2329",
+      "name": "Get token (cached)",
+      "parameters": {
+        "jsCode": "\n// Client credentials contra identity (seguridad-y-sso.md §6.2); cachea en static data hasta 30 s antes de exp.\nconst sd = $getWorkflowStaticData('global');\nconst now = Math.floor(Date.now() / 1000);\nif (sd.token && sd.exp && sd.exp - 30 > now) return [{ json: { token: sd.token, exp: sd.exp, cached: true } }];\nconst res = await this.helpers.httpRequest({\n  method: 'POST', url: ($env.BANDADA_IDENTITY_INTERNAL_URL || 'http://identity-service:7001') + '/api/v1/auth/service-token',\n  body: { clientId: $env.N8N_SERVICE_CLIENT_ID, clientSecret: $env.N8N_SERVICE_CLIENT_SECRET, scopes: ['internal:read', 'internal:write'] },\n  json: true, timeout: 10000,\n});\nsd.token = res.accessToken; sd.exp = now + (res.expiresIn || 300);\nreturn [{ json: { token: sd.token, exp: sd.exp, cached: false } }];\n"
+      },
+      "position": [
+        260,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "errorWorkflow": "wf99errorhandler",
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "timezone": "America/La_Paz"
+  },
+  "tags": []
+}

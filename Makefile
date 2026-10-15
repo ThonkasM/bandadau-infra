@@ -15,7 +15,7 @@ PROJECT_NAME := $(if $(PROJECT),$(PROJECT),$(if $(ENV_PROJECT),$(ENV_PROJECT),ba
 SHARED_DIR := ../bandadau-shared
 
 .PHONY: help setup env keys rabbit-defs up up-infra up-obs down restart logs ps build seed smoke \
-        reset urls validate check-infra host unhost shell-% clone-all
+        reset urls validate check-infra host unhost shell-% clone-all n8n-import n8n-export n8n-validate
 
 help: ## Lista los objetivos
 	@grep -E '^[a-zA-Z_%-]+:.*## ' $(MAKEFILE_LIST) | \
@@ -119,10 +119,23 @@ smoke: ## Recorre registro → login → post → recarga idempotente → inscri
 check-infra: ## Verifica el perfil infra levantado (salud, colas, bases, tablas, buckets, rutas)
 	PROJECT=$(PROJECT_NAME) scripts/check-infra.sh
 
+n8n-validate: ## Valida los workflows JSON de n8n (sin secretos, referencias coherentes)
+	@node n8n/scripts/validate.mjs
+
+n8n-import: n8n-validate ## Reinicia n8n: reimporta credenciales y workflows desde n8n/ y publica los activos (pisa ediciones no exportadas)
+	$(COMPOSE) $(INFRA) up -d --force-recreate n8n
+
+n8n-export: ## Exporta los workflows del n8n en ejecución a n8n/workflows (normalizados)
+	@docker exec $(PROJECT_NAME)-n8n-1 sh -c 'rm -rf /tmp/wf-export && n8n export:workflow --all --separate --output=/tmp/wf-export' | grep -v license
+	@rm -rf .n8n-export && docker cp $(PROJECT_NAME)-n8n-1:/tmp/wf-export .n8n-export
+	@node n8n/scripts/normalize.mjs .n8n-export && rm -rf .n8n-export
+
 validate: env ## docker compose config + sintaxis de scripts + render de definitions
 	$(COMPOSE) --profile '*' config --quiet
 	@bash -n scripts/*.sh postgres/init/*.sh mongo/init/init.sh minio/init.sh dynamodb/create-tables.sh rabbitmq/render-definitions.sh
-	@for f in seed/*.mjs seed/lib/*.mjs smoke/*.mjs; do node --check $$f || exit 1; done
+	@for f in seed/*.mjs seed/lib/*.mjs smoke/*.mjs n8n/scripts/*.mjs; do node --check $$f || exit 1; done
+	@node n8n/scripts/validate.mjs
+	@sh -n n8n/scripts/entrypoint.sh
 	@rabbitmq/render-definitions.sh .env.example >/dev/null && git diff --quiet rabbitmq/definitions.json || echo "AVISO: rabbitmq/definitions.json difiere de la plantilla con .env.example"
 	@echo "validate OK"
 

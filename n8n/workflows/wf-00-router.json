@@ -1,0 +1,324 @@
+{
+  "active": true,
+  "connections": {
+    "Parse CloudEvent": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Route by type",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "RabbitMQ n8n.automation": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Parse CloudEvent",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Route by type": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "wf-01 welcome",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "wf-03 escalation",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "wf-05 critical alert",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "wf-06 broadcast",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Reserved (no-op)",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "id": "wf00router",
+  "name": "wf-00-router",
+  "nodes": [
+    {
+      "credentials": {
+        "rabbitmq": {
+          "id": "bandadaRabbit",
+          "name": "Bandada RabbitMQ (n8n)"
+        }
+      },
+      "id": "841e1ac8-34c2-4020-a974-19da76c98f85",
+      "name": "RabbitMQ n8n.automation",
+      "parameters": {
+        "options": {
+          "acknowledge": "executionFinishes",
+          "assertQueue": false,
+          "jsonParseBody": true,
+          "onlyContent": true,
+          "parallelMessages": 5
+        },
+        "queue": "n8n.automation"
+      },
+      "position": [
+        0,
+        300
+      ],
+      "type": "n8n-nodes-base.rabbitmqTrigger",
+      "typeVersion": 1
+    },
+    {
+      "id": "24182fe1-5001-458f-adc5-50cdb1ec872f",
+      "name": "Parse CloudEvent",
+      "parameters": {
+        "jsCode": "\nconst out = [];\nfor (const it of $input.all()) {\n  let ce = it.json;\n  if (typeof ce === 'string') ce = JSON.parse(ce);\n  if (ce.content && !ce.type) { try { ce = JSON.parse(ce.content); } catch (e) { /* abajo falla */ } }\n  if (ce.specversion !== '1.0' || !ce.id || !ce.type || !ce.data) throw new Error('CloudEvent invalido (specversion/id/type/data)');\n  out.push({ json: ce });\n}\nreturn out;\n"
+      },
+      "position": [
+        260,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "bea5e4f2-ef15-41b8-ab8b-75443622f393",
+      "name": "Route by type",
+      "parameters": {
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "reserved / other"
+        },
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "4c5b7f8e-61ac-4eb6-afea-07ed3aaf579c",
+                    "leftValue": "={{ $json.type }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "bandada.identity.user.registered.v1"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                }
+              },
+              "outputKey": "bandada.identity.user.registered.v1",
+              "renameOutput": true
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "0a96599c-7a3a-4a48-acf3-56a41a736485",
+                    "leftValue": "={{ $json.type }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "bandada.media.asset.flagged.v1"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                }
+              },
+              "outputKey": "bandada.media.asset.flagged.v1",
+              "renameOutput": true
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "e5f5e406-58c0-41d6-a049-08f0199bb155",
+                    "leftValue": "={{ $json.type }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "bandada.insights.alert.raised.v1"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                }
+              },
+              "outputKey": "bandada.insights.alert.raised.v1",
+              "renameOutput": true
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "59e0a2f3-3b1c-49b6-a7fc-d4891523b7ea",
+                    "leftValue": "={{ $json.type }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "bandada.events.event.published.v1"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                }
+              },
+              "outputKey": "bandada.events.event.published.v1",
+              "renameOutput": true
+            }
+          ]
+        }
+      },
+      "position": [
+        520,
+        300
+      ],
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2
+    },
+    {
+      "id": "696324e8-5e45-4965-af43-51bd07835866",
+      "name": "wf-01 welcome",
+      "parameters": {
+        "options": {
+          "waitForSubWorkflow": false
+        },
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "wf01welcome"
+        }
+      },
+      "position": [
+        800,
+        100
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2
+    },
+    {
+      "id": "495bf4e3-3079-47bf-a8b6-028bcd3d68d2",
+      "name": "wf-03 escalation",
+      "parameters": {
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "wf03escalation"
+        }
+      },
+      "position": [
+        800,
+        240
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2
+    },
+    {
+      "id": "a666573f-b6e3-4d9c-ad63-28f84ef06abc",
+      "name": "wf-05 critical alert",
+      "parameters": {
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "wf05alert"
+        }
+      },
+      "position": [
+        800,
+        380
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2
+    },
+    {
+      "id": "3d329815-67ff-44aa-a699-bf21ec049818",
+      "name": "wf-06 broadcast",
+      "parameters": {
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "wf06broadcast"
+        }
+      },
+      "position": [
+        800,
+        520
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2
+    },
+    {
+      "id": "e5a3d7f0-1009-4820-af8e-a5bcfac4a62a",
+      "name": "Reserved (no-op)",
+      "parameters": {},
+      "position": [
+        800,
+        660
+      ],
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "errorWorkflow": "wf99errorhandler",
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "timezone": "America/La_Paz"
+  },
+  "tags": []
+}

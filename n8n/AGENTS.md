@@ -19,24 +19,13 @@ Email (SMTP → Mailpit/SES) · Telegram (opcional) · Node 24 para scripts de v
 
 ```
 bandadau-infra/n8n/
-├── workflows/
-│   ├── wf-00-router.json               único consumidor de n8n.automation (D15)
-│   ├── wf-01-bienvenida.json
-│   ├── wf-02-recordatorio-evento.json
-│   ├── wf-03-escalamiento-moderacion.json
-│   ├── wf-04-resumen-semanal.json
-│   ├── wf-05-alerta-critica.json
-│   ├── wf-06-difusion-evento.json
-│   └── wf-90-service-token.json · wf-91-dedupe.json · wf-99-error-handler.json   (subflujos de apoyo)
-├── templates/{es,en}/              cuerpos de email/mensaje por idioma
-├── credentials/*.json.tpl          plantillas sin secretos (las renderiza bootstrap.sh)
+├── workflows/        wf-00-router … wf-06, wf-90-service-token, wf-91-dedupe, wf-99-error-handler (.json, ids fijos)
+├── credentials/      *.json.tpl sin secretos (las renderiza scripts/render-credentials.mjs con variables de entorno)
 ├── scripts/
-│   ├── bootstrap.sh                credenciales desde variables de entorno (n8n import:credentials)
-│   ├── import.sh · export.sh       n8n import/export:workflow --separate (verificar CLI)
-│   ├── normalize.mjs               ordena claves, quita campos volátiles, fija active: false
-│   ├── publish-test-event.sh       publica un CloudEvent de ejemplo del contrato
-│   └── validate.mjs                JSON válido, sin credenciales embebidas, disparadores esperados
-└── .env.example
+│   ├── entrypoint.sh           entrypoint del contenedor: import:credentials + import:workflow + publish:workflow + start
+│   ├── render-credentials.mjs  · normalize.mjs (export → repo) · validate.mjs (CI)
+│   └── publish-event.mjs       publica un CloudEvent de prueba en bandada.events
+└── README.md         importar/exportar, probar cada workflow, credenciales, limitaciones
 ```
 
 ## Workflows (D10 + D15)
@@ -54,14 +43,13 @@ bandadau-infra/n8n/
 | `wf-05-alerta-critica` | `bandada.insights.alert.raised.v1` (`severity=CRITICAL`) | Telegram/email al equipo |
 | `wf-06-difusion-evento` | `bandada.events.event.published.v1` | notificación a estudiantes de la carrera/grupo (D15) |
 
-## Comandos (propuestos)
+## Comandos
 
 ```bash
 # desde bandadau-infra/
-make infra-up                                  # levanta n8n en :5678
-./n8n/scripts/import.sh                        # carga workflows al n8n local
-./n8n/scripts/export.sh                        # tras editar en la UI, exporta y commitea
-node n8n/scripts/validate.mjs                  # corre en CI
+make up-infra            # levanta n8n en :5678 e importa/publica los workflows al arrancar
+make n8n-import         # reimporta (recrea el contenedor) · make n8n-export  # tras editar en la UI
+make n8n-validate       # corre en CI
 ```
 
 ## Variables de entorno (`.env.example`)

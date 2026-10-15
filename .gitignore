@@ -21,3 +21,4 @@ volumes/
 # Parámetros reales de AWS (solo se versionan los *.env.example)
 aws/params/*.env
 !aws/params/*.env.example
+.n8n-export/

@@ -1,0 +1,87 @@
+{
+  "active": true,
+  "connections": {
+    "Build message": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Email",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Build message",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "id": "wf99errorhandler",
+  "name": "wf-99-error-handler",
+  "nodes": [
+    {
+      "id": "739d05f4-dd8c-4cc2-a89a-79dc77818de4",
+      "name": "Error Trigger",
+      "parameters": {},
+      "position": [
+        0,
+        300
+      ],
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1
+    },
+    {
+      "id": "49e905bc-0f2c-45b9-aeed-0074ad605b7d",
+      "name": "Build message",
+      "parameters": {
+        "jsCode": "\n\nasync function telegram(helpers, text) {\n  const token = $env.TELEGRAM_BOT_TOKEN, chat = $env.TELEGRAM_STAFF_CHAT_ID;\n  if (!token || !chat) return false;\n  await helpers.httpRequest({ method: 'POST', url: 'https://api.telegram.org/bot' + token + '/sendMessage', body: { chat_id: chat, text }, json: true, timeout: 10000 });\n  return true;\n}\n\nconst e = $input.first().json;\nconst wf = e.workflow?.name || '?', node = e.execution?.lastNodeExecuted || '?';\nconst msg = e.execution?.error?.message || 'sin mensaje';\nconst base = ($env.N8N_PUBLIC_URL || 'http://localhost:5678');\nconst text = 'n8n: fallo en ' + wf + ' / nodo ' + node + '\\nerror: ' + msg + '\\nejecucion: ' + (e.execution?.id || '?') + '\\n' + base + '/workflow/' + (e.workflow?.id || '') + '/executions/' + (e.execution?.id || '');\ntry { await telegram(this.helpers, text); } catch (err) { /* Telegram es opcional */ }\nreturn [{ json: { to: $env.N8N_ERROR_EMAIL || 'devs@bandada.localhost', subject: '[n8n] Fallo en ' + wf, text, html: '<pre>' + text.replace(/</g, '&lt;') + '</pre>' } }];\n"
+      },
+      "position": [
+        260,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "credentials": {
+        "smtp": {
+          "id": "bandadaSmtp",
+          "name": "Bandada SMTP (Mailpit)"
+        }
+      },
+      "id": "d5bca115-8df9-4e4f-a127-28b34d166b50",
+      "name": "Send Email",
+      "parameters": {
+        "emailFormat": "both",
+        "fromEmail": "={{ $env.MAIL_FROM || 'Bandada U <no-reply@bandada.localhost>' }}",
+        "html": "={{ $json.html }}",
+        "options": {},
+        "subject": "={{ $json.subject }}",
+        "text": "={{ $json.text }}",
+        "toEmail": "={{ $json.to }}"
+      },
+      "position": [
+        520,
+        300
+      ],
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "timezone": "America/La_Paz"
+  },
+  "tags": []
+}

@@ -1,0 +1,359 @@
+{
+  "active": true,
+  "connections": {
+    "Compose failure email": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send failure email",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Compose weekly email": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send weekly email",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Key": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Request report",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Manual": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Key",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Monday 08:00": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Key",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Poll report": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Status",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Request report": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Wait poll",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Status": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Compose weekly email",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Wait poll",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Compose failure email",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Wait poll": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Poll report",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "id": "wf04weekly",
+  "name": "wf-04-resumen-semanal",
+  "nodes": [
+    {
+      "id": "ecb99026-6982-433d-ac22-907a53e3d3b8",
+      "name": "Monday 08:00",
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "expression": "0 8 * * 1",
+              "field": "cronExpression"
+            }
+          ]
+        }
+      },
+      "position": [
+        0,
+        200
+      ],
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "id": "089f4324-870c-47f8-abd4-8b5916a18e8b",
+      "name": "Manual",
+      "parameters": {},
+      "position": [
+        0,
+        400
+      ],
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1
+    },
+    {
+      "id": "9f564e11-8b8b-43f7-aed1-b4cf7c9b7262",
+      "name": "Key",
+      "parameters": {
+        "jsCode": "\n\nconst DEFAULT_STAFF = [\n  { email: 'moderacion@bandada.localhost', locale: 'es', roles: ['MODERATOR'] },\n  { email: 'admin@bandada.localhost', locale: 'en', roles: ['ADMIN'] },\n];\nfunction staff(role) {\n  let list = null;\n  try { list = JSON.parse($env.N8N_STAFF_RECIPIENTS || ''); } catch (e) { list = null; }\n  if (!Array.isArray(list)) list = DEFAULT_STAFF;\n  return list.filter((r) => (r.roles || []).includes(role));\n}\nconst esc = (s) => String(s ?? '').replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c]));\nconst layout = (title, bodyHtml) => '<div style=\"font-family:Arial,sans-serif;max-width:560px;margin:auto\"><h2 style=\"color:#4f46e5\">' + esc(title) + '</h2>' + bodyHtml + '<hr><p style=\"color:#888;font-size:12px\">Bandada U</p></div>';\nconst laPaz = (iso) => new Date(new Date(iso).getTime() - 4 * 3600 * 1000).toISOString().replace('T', ' ').slice(0, 16) + ' (La Paz)';\n\n\n// UUID determinista (v8) derivado de un texto: los servicios exigen Idempotency-Key con forma de UUID.\nfunction detUuid(str) {\n  let h1 = 0xdeadbeef, h2 = 0x41c6ce57, h3 = 0x9e3779b9, h4 = 0x85ebca6b;\n  for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i);\n    h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); h3 = Math.imul(h3 ^ c, 2246822507); h4 = Math.imul(h4 ^ c, 3266489909); }\n  h1 = Math.imul(h1 ^ (h2 >>> 15), 2246822507) ^ Math.imul(h3 ^ (h4 >>> 13), 3266489909);\n  h2 = Math.imul(h2 ^ (h3 >>> 15), 2246822507) ^ Math.imul(h4 ^ (h1 >>> 13), 3266489909);\n  h3 = Math.imul(h3 ^ (h4 >>> 15), 2246822507) ^ Math.imul(h1 ^ (h2 >>> 13), 3266489909);\n  h4 = Math.imul(h4 ^ (h1 >>> 15), 2246822507) ^ Math.imul(h2 ^ (h3 >>> 13), 3266489909);\n  const hex = [h1, h2, h3, h4].map((n) => (n >>> 0).toString(16).padStart(8, '0')).join('');\n  return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-8' + hex.slice(13, 16) + '-a' + hex.slice(17, 20) + '-' + hex.slice(20, 32);\n}\n\nconst d = new Date(Date.now() - 4 * 3600 * 1000); // fecha en La Paz\nconst t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));\nconst dayNum = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - dayNum);\nconst yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));\nconst week = Math.ceil((((t - yearStart) / 86400000) + 1) / 7);\nconst isoWeek = t.getUTCFullYear() + '-W' + String(week).padStart(2, '0');\nconst Q = {\n  es: 'Resume la actividad de Bandada U de la semana pasada (lunes a domingo): usuarios activos, publicaciones, inscripciones, créditos y moderación, comparado con la semana anterior.',\n  en: 'Summarize Bandada U activity for last week (Monday to Sunday): active users, posts, registrations, credits and moderation, compared with the previous week.',\n};\nconst locales = [...new Set(staff('ADMIN').map((r) => (r.locale === 'en' ? 'en' : 'es')))];\nreturn locales.map((locale) => ({ json: { locale, isoWeek, question: Q[locale], attempt: 0, correlationId: 'n8n-wf04-' + isoWeek, idemKey: detUuid('n8n:wf-04:' + isoWeek + ':' + locale) } }));\n"
+      },
+      "position": [
+        260,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "e74d53a7-2a83-41f3-ac68-c6ee49c48192",
+      "name": "Request report",
+      "parameters": {
+        "jsCode": "\n// Pide el reporte a insights (variante interna). Si insights no esta disponible, sigue con status UNAVAILABLE.\nconst out = [];\nfor (const it of $input.all()) {\n  const s = it.json;\n  const tk = await this.helpers.httpRequest({ method: 'POST', url: $env.BANDADA_IDENTITY_INTERNAL_URL + '/api/v1/auth/service-token', body: { clientId: $env.N8N_SERVICE_CLIENT_ID, clientSecret: $env.N8N_SERVICE_CLIENT_SECRET, scopes: ['internal:read', 'internal:write'] }, json: true, timeout: 10000 });\n  try {\n    const r = await this.helpers.httpRequest({ method: 'POST', url: $env.BANDADA_INSIGHTS_INTERNAL_URL + '/internal/v1/reports', headers: { Authorization: 'Bearer ' + tk.accessToken, 'Idempotency-Key': s.idemKey, 'Accept-Language': s.locale, 'X-Correlation-Id': s.correlationId }, body: { question: s.question, locale: s.locale }, json: true, timeout: 10000 });\n    out.push({ json: { ...s, reportId: r.reportId, status: r.status || 'PENDING' } });\n  } catch (e) {\n    out.push({ json: { ...s, status: 'UNAVAILABLE', error: String(e.message || e).slice(0, 200) } });\n  }\n}\nreturn out;\n"
+      },
+      "position": [
+        520,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "9e0ed9e5-4766-49fd-a81a-f3a569209fb8",
+      "name": "Wait poll",
+      "parameters": {
+        "amount": "={{ Number($env.N8N_REPORT_POLL_SECONDS ?? 60) }}",
+        "resume": "timeInterval",
+        "unit": "seconds"
+      },
+      "position": [
+        780,
+        300
+      ],
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "webhookId": "c0d9289a-1c60-47ff-a580-a8503ad19784"
+    },
+    {
+      "id": "48080691-26bb-4a1e-a5b3-37ff82bfc59d",
+      "name": "Poll report",
+      "parameters": {
+        "jsCode": "\nconst out = [];\nfor (const it of $input.all()) {\n  const s = { ...it.json, attempt: (it.json.attempt || 0) + 1 };\n  if (!s.reportId) { out.push({ json: s }); continue; }\n  try {\n    const tk = await this.helpers.httpRequest({ method: 'POST', url: $env.BANDADA_IDENTITY_INTERNAL_URL + '/api/v1/auth/service-token', body: { clientId: $env.N8N_SERVICE_CLIENT_ID, clientSecret: $env.N8N_SERVICE_CLIENT_SECRET, scopes: ['internal:read'] }, json: true, timeout: 10000 });\n    const r = await this.helpers.httpRequest({ method: 'GET', url: $env.BANDADA_INSIGHTS_INTERNAL_URL + '/internal/v1/reports/' + s.reportId, headers: { Authorization: 'Bearer ' + tk.accessToken, 'Accept-Language': s.locale, 'X-Correlation-Id': s.correlationId }, json: true, timeout: 10000 });\n    out.push({ json: { ...s, status: r.status, title: r.title, markdown: r.markdown, hasAudio: !!(r.audio || r.hasAudio || r.audioMediaId), error: r.failureReason || r.error || null } });\n  } catch (e) { out.push({ json: { ...s, status: 'RUNNING', pollError: String(e.message || e).slice(0, 200) } }); }\n}\nreturn out;\n"
+      },
+      "position": [
+        1040,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "6b484596-22c0-4713-a833-e3c91fa21b86",
+      "name": "Status",
+      "parameters": {
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "FAILED/TIMEOUT/UNAVAILABLE"
+        },
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "b2fdab23-0a2c-49f3-a95a-947861863cb7",
+                    "leftValue": "={{ $json.status }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "READY"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                }
+              },
+              "outputKey": "READY",
+              "renameOutput": true
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "7c6c2e5d-48ab-47a0-a7cb-f70d3ea25fa4",
+                    "leftValue": "={{ [\"PENDING\",\"RUNNING\"].includes($json.status) && $json.attempt < 10 }}",
+                    "operator": {
+                      "operation": "true",
+                      "singleValue": true,
+                      "type": "boolean"
+                    },
+                    "rightValue": ""
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                }
+              },
+              "outputKey": "PENDING",
+              "renameOutput": true
+            }
+          ]
+        }
+      },
+      "position": [
+        1300,
+        300
+      ],
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2
+    },
+    {
+      "id": "4c1238f2-cb20-45bb-a2e0-60b962f1bcdd",
+      "name": "Compose weekly email",
+      "parameters": {
+        "jsCode": "\n\nconst DEFAULT_STAFF = [\n  { email: 'moderacion@bandada.localhost', locale: 'es', roles: ['MODERATOR'] },\n  { email: 'admin@bandada.localhost', locale: 'en', roles: ['ADMIN'] },\n];\nfunction staff(role) {\n  let list = null;\n  try { list = JSON.parse($env.N8N_STAFF_RECIPIENTS || ''); } catch (e) { list = null; }\n  if (!Array.isArray(list)) list = DEFAULT_STAFF;\n  return list.filter((r) => (r.roles || []).includes(role));\n}\nconst esc = (s) => String(s ?? '').replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c]));\nconst layout = (title, bodyHtml) => '<div style=\"font-family:Arial,sans-serif;max-width:560px;margin:auto\"><h2 style=\"color:#4f46e5\">' + esc(title) + '</h2>' + bodyHtml + '<hr><p style=\"color:#888;font-size:12px\">Bandada U</p></div>';\nconst laPaz = (iso) => new Date(new Date(iso).getTime() - 4 * 3600 * 1000).toISOString().replace('T', ' ').slice(0, 16) + ' (La Paz)';\n\nconst s = $json;\nconst admin = $env.BANDADA_ADMIN_URL || 'http://admin.bandada.localhost';\nconst link = admin + '/insights/reports/' + s.reportId;   // enlace al panel (requiere sesion); sin URL prefirmada\nconst md = String(s.markdown || '');\nconst html = md.split('\\n').map((l) => /^#{1,3} /.test(l) ? '<h3>' + esc(l.replace(/^#+ /, '')) + '</h3>' : /^[-*] /.test(l) ? '<li>' + esc(l.slice(2)) + '</li>' : l.trim() ? '<p>' + esc(l).replace(/\\*\\*(.+?)\\*\\*/g, '<b>$1</b>') + '</p>' : '').join('');\nconst T = { es: { subject: 'Resumen semanal de Bandada U (' + s.isoWeek + ')', cta: 'Ver el reporte completo en el panel' }, en: { subject: 'Bandada U weekly summary (' + s.isoWeek + ')', cta: 'View the full report in the admin panel' } }[s.locale];\nreturn staff('ADMIN').filter((r) => (r.locale === 'en' ? 'en' : 'es') === s.locale).map((r) => ({ json: { to: r.email, subject: T.subject, text: md + '\\n\\n' + T.cta + ': ' + link, html: layout(s.title || T.subject, html + '<p><a href=\"' + esc(link) + '\">' + T.cta + '</a></p>') } }));\n"
+      },
+      "position": [
+        1560,
+        200
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "d82d35b4-960b-48b0-afe7-3f55f93abba8",
+      "name": "Compose failure email",
+      "parameters": {
+        "jsCode": "\n\nconst DEFAULT_STAFF = [\n  { email: 'moderacion@bandada.localhost', locale: 'es', roles: ['MODERATOR'] },\n  { email: 'admin@bandada.localhost', locale: 'en', roles: ['ADMIN'] },\n];\nfunction staff(role) {\n  let list = null;\n  try { list = JSON.parse($env.N8N_STAFF_RECIPIENTS || ''); } catch (e) { list = null; }\n  if (!Array.isArray(list)) list = DEFAULT_STAFF;\n  return list.filter((r) => (r.roles || []).includes(role));\n}\nconst esc = (s) => String(s ?? '').replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c]));\nconst layout = (title, bodyHtml) => '<div style=\"font-family:Arial,sans-serif;max-width:560px;margin:auto\"><h2 style=\"color:#4f46e5\">' + esc(title) + '</h2>' + bodyHtml + '<hr><p style=\"color:#888;font-size:12px\">Bandada U</p></div>';\nconst laPaz = (iso) => new Date(new Date(iso).getTime() - 4 * 3600 * 1000).toISOString().replace('T', ' ').slice(0, 16) + ' (La Paz)';\n\nconst s = $json;\nconst T = { es: { subject: 'No se pudo generar el resumen semanal (' + s.isoWeek + ')', body: 'El reporte no se completo. Estado: ' }, en: { subject: 'Weekly summary could not be generated (' + s.isoWeek + ')', body: 'The report did not complete. Status: ' } }[s.locale];\nconst text = T.body + s.status + (s.error ? ' (' + s.error + ')' : '') + (s.attempt >= 10 ? ' [timeout]' : '');\nreturn staff('ADMIN').filter((r) => (r.locale === 'en' ? 'en' : 'es') === s.locale).map((r) => ({ json: { to: r.email, subject: T.subject, text, html: layout(T.subject, '<p>' + esc(text) + '</p>') } }));\n"
+      },
+      "position": [
+        1560,
+        460
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "credentials": {
+        "smtp": {
+          "id": "bandadaSmtp",
+          "name": "Bandada SMTP (Mailpit)"
+        }
+      },
+      "id": "857e774b-2700-42d3-a70c-9d4a59a9f3b0",
+      "name": "Send weekly email",
+      "parameters": {
+        "emailFormat": "both",
+        "fromEmail": "={{ $env.MAIL_FROM || 'Bandada U <no-reply@bandada.localhost>' }}",
+        "html": "={{ $json.html }}",
+        "options": {},
+        "subject": "={{ $json.subject }}",
+        "text": "={{ $json.text }}",
+        "toEmail": "={{ $json.to }}"
+      },
+      "position": [
+        1820,
+        200
+      ],
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1
+    },
+    {
+      "credentials": {
+        "smtp": {
+          "id": "bandadaSmtp",
+          "name": "Bandada SMTP (Mailpit)"
+        }
+      },
+      "id": "3044f77a-3545-474e-a4f2-934a83ae4f83",
+      "name": "Send failure email",
+      "parameters": {
+        "emailFormat": "both",
+        "fromEmail": "={{ $env.MAIL_FROM || 'Bandada U <no-reply@bandada.localhost>' }}",
+        "html": "={{ $json.html }}",
+        "options": {},
+        "subject": "={{ $json.subject }}",
+        "text": "={{ $json.text }}",
+        "toEmail": "={{ $json.to }}"
+      },
+      "position": [
+        1820,
+        460
+      ],
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "errorWorkflow": "wf99errorhandler",
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "timezone": "America/La_Paz"
+  },
+  "tags": []
+}
