@@ -9,7 +9,7 @@ export function createReport(title) {
     const t0 = Date.now();
     try {
       const out = await fn();
-      const detail = typeof out === 'string' ? out : '';
+      const detail = typeof out === 'string' && !/^eyJ[\w-]+\.[\w-]+\.[\w-]*$/.test(out) ? out : '';
       rows.push({ name, status: 'ok', detail, ms: Date.now() - t0 });
       console.log(`  ${c(32, '✓')} ${name}${detail ? c(2, ` — ${detail}`) : ''}`);
       return out;
