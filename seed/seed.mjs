@@ -8,6 +8,7 @@ import { createReport } from './lib/report.mjs';
 import { mailpitAvailable } from './lib/mailpit.mjs';
 import { ensureUniversity, ensureUser, ensureRoles, login } from './lib/identity.mjs';
 import { UNIVERSITIES, USERS, GROUP, POSTS, EVENTS } from './lib/demo-data.mjs';
+import { seedExtra } from './extra.mjs';
 
 const report = createReport('Seed Bandada U (fase 1)');
 const { step } = report;
@@ -146,6 +147,8 @@ for (const e of EVENTS) {
     return `publicado ${id}`;
   });
 }
+
+if (!process.argv.includes('--basic')) await seedExtra({ step, ctx, groupId });
 
 console.log('\nCredenciales de demo (solo dev):');
 for (const u of USERS) console.log(`  ${u.email.padEnd(20)} ${cfg.password}   [${u.roles.join('+')}]`);
