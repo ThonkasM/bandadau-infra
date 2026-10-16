@@ -8,6 +8,7 @@ http:
         accessControlAllowOriginListRegex:
           - '^http://localhost:(3000|3001|4201|8081)$'
           - '^http://127\.0\.0\.1:(3000|3001|4201|8081)$'
+          - '^http://{{ env "LAN_HOST" | replace "." "\\." }}:(3000|3001|4201|8081)$'
           - '^https?://([a-z0-9-]+\.)?{{ env "BASE_DOMAIN" | replace "." "\\." }}$'
         accessControlAllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
         accessControlAllowHeaders:
