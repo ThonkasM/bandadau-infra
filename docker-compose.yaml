@@ -4,7 +4,7 @@
 #                  minio(+init), mailpit, n8n
 #   services       los 8 servicios de la fase 1 (+ wallet-worker/relay, notification-worker/relay)
 #   observability  grafana/otel-lgtm (OFF por defecto: `make up-obs`)
-#   llm            placeholder de la fase 2 (ollama)
+#   llm            ollama (LLM local para el agente de reportes: LLM_PROVIDER=ollama)
 # Variables: ./.env (copia de .env.example). Contrato: bandadau-docs/docs/06-plan/fase-1-alcance-y-contrato-local.md
 # =============================================================================
 name: bandada
@@ -82,6 +82,8 @@ services:
       - "${TRAEFIK_DASHBOARD_PORT:-8080}:8080"
     environment:
       BASE_DOMAIN: ${BASE_DOMAIN:-bandada.localhost}
+      # Extra Host accepted by the API routers (dispositivo físico por IP LAN).
+      LAN_HOST: ${LAN_HOST:-127.0.0.1}
     volumes:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
@@ -689,7 +691,7 @@ services:
       LLM_MODEL: ${LLM_MODEL:-claude-sonnet-5-5}
       LLM_MODEL_CHEAP: ${LLM_MODEL_CHEAP:-claude-haiku-5-5}
       OLLAMA_URL: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
       TTS_PROVIDER: ${TTS_PROVIDER:-none}
       PIPER_URL: http://piper:5002
       PROMETHEUS_URL: ${PROMETHEUS_URL:-}
@@ -847,9 +849,29 @@ services:
     mem_limit: 1536m
 
   # ===========================================================================
-  # Perfil llm — placeholder de la fase 2 (UC-17/19/20/22). Vacío a propósito en la fase 1.
+  # Perfil llm — LLM local (Ollama) para el agente de reportes (UC-19). Solo CPU; apágalo cuando no lo uses:
+  #   docker compose --profile llm up -d ollama   |   docker compose --profile llm stop ollama
+  # El modelo se baja una vez:  docker compose exec ollama ollama pull ${OLLAMA_MODEL}
   # ===========================================================================
-  # ollama: ...   (se define en la fase 2; ver ia-local-y-offline.md)
+  ollama:
+    image: ollama/ollama:0.40.5
+    profiles: [llm]
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: 10m
+      OLLAMA_MAX_LOADED_MODELS: 1
+    ports:
+      - "127.0.0.1:11434:11434"
+    networks: [bandada]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    mem_limit: 4096m
 
 networks:
   bandada:
@@ -866,3 +888,4 @@ volumes:
   n8n-data:
   lgtm-data:
   media-models-cache:
+  ollama-data:

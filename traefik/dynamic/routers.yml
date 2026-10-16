@@ -3,7 +3,7 @@ http:
   routers:
     # ---- Bloqueos (prioridad máxima) -----------------------------------------
     api-internal-block:
-      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && (PathPrefix(`/internal`) || PathPrefix(`/api/v1/auth/service-token`))'
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`, `{{ env "LAN_HOST" }}`) && (PathPrefix(`/internal`) || PathPrefix(`/api/v1/auth/service-token`))'
       priority: 10000
       entryPoints: [web]
       middlewares: [deny-all]
@@ -11,13 +11,13 @@ http:
 
     # ---- identity-service:7001 -----------------------------------------------
     identity-auth:
-      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/api/v1/auth`)'
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`, `{{ env "LAN_HOST" }}`) && PathPrefix(`/api/v1/auth`)'
       priority: 200
       entryPoints: [web]
       middlewares: [api-auth-chain]
       service: identity
     identity:
-      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && (PathPrefix(`/api/v1/users`) || PathPrefix(`/api/v1/universities`) || PathPrefix(`/.well-known`))'
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`, `{{ env "LAN_HOST" }}`) && (PathPrefix(`/api/v1/users`) || PathPrefix(`/api/v1/universities`) || PathPrefix(`/.well-known`))'
       priority: 100
       entryPoints: [web]
       middlewares: [api-chain]
@@ -25,49 +25,49 @@ http:
 
     # ---- social-service:7002 ---------------------------------------------------
     social:
-      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && (PathPrefix(`/api/v1/profiles`) || PathPrefix(`/api/v1/posts`) || PathPrefix(`/api/v1/feed`) || PathPrefix(`/api/v1/groups`) || PathPrefix(`/api/v1/follows`) || PathPrefix(`/api/v1/reports`))'
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`, `{{ env "LAN_HOST" }}`) && (PathPrefix(`/api/v1/profiles`) || PathPrefix(`/api/v1/posts`) || PathPrefix(`/api/v1/feed`) || PathPrefix(`/api/v1/groups`) || PathPrefix(`/api/v1/follows`) || PathPrefix(`/api/v1/reports`))'
       priority: 100
       entryPoints: [web]
       middlewares: [api-chain]
       service: social
 
     media:
-      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/api/v1/media`)'
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`, `{{ env "LAN_HOST" }}`) && PathPrefix(`/api/v1/media`)'
       priority: 100
       entryPoints: [web]
       middlewares: [api-chain]
       service: media
 
     events:
-      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && (PathPrefix(`/api/v1/events`) || PathPrefix(`/api/v1/registrations`))'
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`, `{{ env "LAN_HOST" }}`) && (PathPrefix(`/api/v1/events`) || PathPrefix(`/api/v1/registrations`))'
       priority: 100
       entryPoints: [web]
       middlewares: [api-chain]
       service: events
 
     wallet:
-      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/api/v1/wallet`)'
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`, `{{ env "LAN_HOST" }}`) && PathPrefix(`/api/v1/wallet`)'
       priority: 100
       entryPoints: [web]
       middlewares: [api-chain]
       service: wallet
 
     ticketing:
-      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/api/v1/tickets`)'
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`, `{{ env "LAN_HOST" }}`) && PathPrefix(`/api/v1/tickets`)'
       priority: 100
       entryPoints: [web]
       middlewares: [api-chain]
       service: ticketing
 
     notification:
-      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && (PathPrefix(`/api/v1/notifications`) || PathPrefix(`/api/v1/devices`))'
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`, `{{ env "LAN_HOST" }}`) && (PathPrefix(`/api/v1/notifications`) || PathPrefix(`/api/v1/devices`))'
       priority: 100
       entryPoints: [web]
       middlewares: [api-chain]
       service: notification
 
     insights:
-      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/api/v1/insights`)'
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`, `{{ env "LAN_HOST" }}`) && PathPrefix(`/api/v1/insights`)'
       priority: 100
       entryPoints: [web]
       middlewares: [api-chain]
@@ -77,7 +77,7 @@ http:
     # y responde 401 sin token válido. Cadena propia: CORS con cabeceras MCP, límite de tasa más bajo y sin `compress` (respuestas SSE).
     # `/internal` sigue en 403 por `api-internal-block` (prioridad 10000).
     insights-mcp:
-      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/mcp`)'
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`, `{{ env "LAN_HOST" }}`) && PathPrefix(`/mcp`)'
       priority: 150
       entryPoints: [web]
       middlewares: [mcp-chain]
@@ -85,7 +85,7 @@ http:
 
     # GraphQL: HTTP + WebSocket (graphql-ws). Sin compress para no interferir con el upgrade.
     graphql:
-      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/graphql`)'
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`, `{{ env "LAN_HOST" }}`) && PathPrefix(`/graphql`)'
       priority: 100
       entryPoints: [web]
       middlewares: [cors, ratelimit-default, secure-headers]
