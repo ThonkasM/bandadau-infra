@@ -400,10 +400,11 @@ if (env('SMOKE_INSIGHTS', '1') === '0' && only !== 'insights') {
     const r = await mcp(adminToken, 'tools/list', undefined, 2);
     expect(r.ok, `tools/list ${r.status} ${r.text.slice(0, 200)}`);
     const names = r.json.result.tools.map((t) => t.name);
-    for (const n of ['get_platform_kpis', 'get_registration_stats', 'list_events', 'get_credit_stats', 'get_content_stats', 'list_flagged_content', 'list_failed_sagas', 'get_service_health', 'query_metrics', 'detect_anomalies', 'generate_report']) {
+    for (const n of ['get_platform_kpis', 'get_registration_stats', 'list_events', 'get_credit_stats', 'get_content_stats', 'list_flagged_content', 'list_failed_sagas', 'get_service_health', 'query_metrics', 'detect_anomalies', 'generate_report', 'list_recent_registrations', 'get_top_credit_spenders', 'get_user_stats', 'get_wallet_overview', 'get_ticket_stats', 'get_content_rankings', 'get_event_ranking', 'calculate']) {
       expect(names.includes(n), `falta la herramienta ${n}`);
     }
     expect(!names.includes('raise_alert'), 'raise_alert no debe verse con un token de usuario');
+    expect(names.length === 19, `tools/list devuelve ${names.length} herramientas (esperadas 19 con un token de usuario)`);
     return `${names.length} herramientas`;
   });
   await step('MCP: tools/call get_platform_kpis → KPIs agregados', async () => {
