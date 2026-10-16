@@ -66,12 +66,21 @@ http:
       middlewares: [api-chain]
       service: notification
 
-    # insights-service es de la fase 2: la ruta existe (catálogo §4) y responde 502 hasta que el servicio exista.
     insights:
-      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && (PathPrefix(`/api/v1/insights`) || PathPrefix(`/mcp`))'
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/api/v1/insights`)'
       priority: 100
       entryPoints: [web]
       middlewares: [api-chain]
+      service: insights
+
+    # Servidor MCP (Streamable HTTP, R-8). Traefik NO autentica: insights valida el JWT (admin aud=bandada-admin o token MCP aud=mcp)
+    # y responde 401 sin token válido. Cadena propia: CORS con cabeceras MCP, límite de tasa más bajo y sin `compress` (respuestas SSE).
+    # `/internal` sigue en 403 por `api-internal-block` (prioridad 10000).
+    insights-mcp:
+      rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/mcp`)'
+      priority: 150
+      entryPoints: [web]
+      middlewares: [mcp-chain]
       service: insights
 
     # GraphQL: HTTP + WebSocket (graphql-ws). Sin compress para no interferir con el upgrade.

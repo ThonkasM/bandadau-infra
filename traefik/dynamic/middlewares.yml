@@ -58,9 +58,41 @@ http:
         sourceRange:
           - 255.255.255.255/32
 
+    # R-8: CORS del endpoint MCP (clientes web como el MCP Inspector): mismas reglas que `cors` más las cabeceras del protocolo.
+    cors-mcp:
+      headers:
+        accessControlAllowOriginListRegex:
+          - '^http://localhost:(3000|3001|4201|8081|6274)$'
+          - '^http://127\.0\.0\.1:(3000|3001|4201|8081|6274)$'
+          - '^https?://([a-z0-9-]+\.)?{{ env "BASE_DOMAIN" | replace "." "\\." }}$'
+        accessControlAllowMethods: [POST, OPTIONS]
+        accessControlAllowHeaders:
+          - Authorization
+          - Content-Type
+          - Accept
+          - MCP-Protocol-Version
+          - Mcp-Session-Id
+          - X-Correlation-Id
+          - traceparent
+          - tracestate
+        accessControlExposeHeaders:
+          - Mcp-Session-Id
+          - X-Correlation-Id
+          - Retry-After
+        accessControlMaxAge: 600
+        addVaryHeader: true
+    ratelimit-mcp:
+      rateLimit:
+        average: 20
+        period: 1s
+        burst: 40
+
     api-chain:
       chain:
         middlewares: [cors, ratelimit-default, secure-headers, compress]
     api-auth-chain:
       chain:
         middlewares: [cors, ratelimit-auth, secure-headers, compress]
+    mcp-chain:
+      chain:
+        middlewares: [cors-mcp, ratelimit-mcp, secure-headers]
