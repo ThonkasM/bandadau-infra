@@ -15,7 +15,7 @@ PROJECT_NAME := $(if $(PROJECT),$(PROJECT),$(if $(ENV_PROJECT),$(ENV_PROJECT),ba
 SHARED_DIR := ../bandadau-shared
 
 .PHONY: help setup env keys rabbit-defs up up-infra up-obs down restart logs ps build seed smoke \
-        reset urls validate check-infra host unhost shell-% clone-all n8n-import n8n-export n8n-validate
+        reset urls validate check-infra qa host unhost shell-% clone-all n8n-import n8n-export n8n-validate
 
 help: ## Lista los objetivos
 	@grep -E '^[a-zA-Z_%-]+:.*## ' $(MAKEFILE_LIST) | \
@@ -115,6 +115,9 @@ seed: ## Carga datos de demo (universidades, usuarios, eventos, créditos); idem
 
 smoke: ## Recorre registro → login → post → recarga idempotente → inscripción → compensación → GraphQL
 	COMPOSE_PROJECT=$(PROJECT_NAME) node smoke/smoke.mjs
+
+qa: ## Batería de regresión del agente de reportes (≥ 40 preguntas es/en, lenta): make qa [ENGINE=AUTO|OPENCODE|OLLAMA|STUB] [N=10]
+	COMPOSE_PROJECT=$(PROJECT_NAME) node smoke/qa-battery.mjs --engine=$(or $(ENGINE),AUTO) $(if $(N),--n=$(N),) $(QA_ARGS)
 
 check-infra: ## Verifica el perfil infra levantado (salud, colas, bases, tablas, buckets, rutas)
 	PROJECT=$(PROJECT_NAME) scripts/check-infra.sh
