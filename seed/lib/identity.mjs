@@ -14,7 +14,7 @@ export async function serviceToken() {
     body: {
       clientId: cfg.seedClientId,
       clientSecret: cfg.seedClientSecret,
-      scopes: ['users:read', 'users:write', 'universities:write'],
+      scopes: ['internal:read', 'internal:write'], // D-7: /internal/** exige estos scopes (los pedidos se intersectan con los del cliente)
     },
   });
   if (!r.ok) throw new Error(`service-token: ${problem(r)} (¿SERVICE_CLIENTS incluye ${cfg.seedClientId}?)`);
