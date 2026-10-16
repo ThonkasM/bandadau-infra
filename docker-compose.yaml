@@ -688,10 +688,13 @@ services:
       MCP_ALLOWED_ORIGINS: ${MCP_ALLOWED_ORIGINS:-http://api.bandada.localhost,http://admin.bandada.localhost}
       LLM_PROVIDER: ${LLM_PROVIDER:-stub}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      LLM_MODEL: ${LLM_MODEL:-claude-sonnet-5-5}
-      LLM_MODEL_CHEAP: ${LLM_MODEL_CHEAP:-claude-haiku-5-5}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-haiku-5-5}
+      LLM_MODEL: ${LLM_MODEL:-${ANTHROPIC_MODEL:-claude-haiku-5-5}}
+      LLM_MODEL_CHEAP: ${LLM_MODEL_CHEAP:-${ANTHROPIC_MODEL:-claude-haiku-5-5}}
+      LLM_FALLBACK: ${LLM_FALLBACK:-}
       OLLAMA_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
+      OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS:-120000}
       TTS_PROVIDER: ${TTS_PROVIDER:-none}
       PIPER_URL: http://piper:5002
       PROMETHEUS_URL: ${PROMETHEUS_URL:-}
