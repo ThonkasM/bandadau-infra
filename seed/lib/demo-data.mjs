@@ -2,6 +2,7 @@
 export const UNIVERSITIES = [
   { code: 'UMSA', name: 'Universidad Mayor de San Andrés', domain: 'umsa.edu.bo' },
   { code: 'UCB', name: 'Universidad Católica Boliviana', domain: 'ucb.edu.bo' },
+  { code: 'UAGRM', name: 'Universidad Autónoma Gabriel René Moreno', domain: 'uagrm.edu.bo' },
 ];
 
 export const USERS = [
@@ -14,6 +15,10 @@ export const USERS = [
   { key: 'sofia', email: 'sofia@umsa.edu.bo', roles: ['STUDENT'] },
   { key: 'diego', email: 'diego@umsa.edu.bo', roles: ['STUDENT'] },
   { key: 'camila', email: 'camila@umsa.edu.bo', roles: ['STUDENT'] },
+  // Equipo del proyecto (UAGRM). `university` por defecto es UMSA.
+  { key: 'jorge', email: 'jorge.carvajal@uagrm.edu.bo', roles: ['STUDENT'], university: 'UAGRM' },
+  { key: 'cesar', email: 'cesar.caballero@uagrm.edu.bo', roles: ['STUDENT'], university: 'UAGRM' },
+  { key: 'diegoy', email: 'diego.yebara@uagrm.edu.bo', roles: ['STUDENT'], university: 'UAGRM' },
 ];
 
 export const GROUP = { name: 'Ingeniería de Software II', subject: 'Ingeniería de Software', privacy: 'PUBLIC' };
@@ -41,6 +46,9 @@ export const PROFILES = {
   marco: { displayName: 'Marco Rojas', career: 'Derecho', semester: 4, bio: 'Estudiando para ser el mejor abogado.', interests: ['debate', 'fútbol'] },
   sofia: { displayName: 'Sofía Quispe', career: 'Arquitectura', semester: 5, bio: 'Maquetas, planos y mucha cafeína.', interests: ['diseño', 'fotografía'] },
   diego: { displayName: 'Diego Flores', career: 'Ingeniería Electrónica', semester: 8, bio: 'Arduino, robótica y drones.', interests: ['robótica', 'iot'] },
+  jorge: { displayName: 'Jorge Carvajal' },
+  cesar: { displayName: 'Cesar Caballero' },
+  diegoy: { displayName: 'Diego Yebara' },
   camila: { displayName: 'Camila Vargas', career: 'Medicina', semester: 3, bio: 'Anatomía y buenos hábitos de estudio.', interests: ['salud', 'running'] },
 };
 

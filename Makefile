@@ -157,7 +157,7 @@ urls: ## Muestra URLs, puertos y credenciales de demo
 	 echo "  S3 (firmado)   http://localhost:9000        (s3.$$d vía Traefik)"; \
 	 echo "  Traefik        http://localhost:8080"; \
 	 echo "  Grafana        http://localhost:3300        (solo con make up-obs)"; \
-	 echo "  Demo (make seed): admin@umsa.edu.bo mod@umsa.edu.bo org@umsa.edu.bo org2@umsa.edu.bo lucia@umsa.edu.bo marco@umsa.edu.bo  /  Bandada#2026"; \
+	 echo "  Demo (make seed): admin@umsa.edu.bo mod@umsa.edu.bo org@umsa.edu.bo org2@umsa.edu.bo lucia@umsa.edu.bo marco@umsa.edu.bo jorge.carvajal@uagrm.edu.bo cesar.caballero@uagrm.edu.bo diego.yebara@uagrm.edu.bo  /  Bandada#2026"; \
 	 echo ""
 
 # ---------------------------------------------------------------------------

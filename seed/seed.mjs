@@ -39,8 +39,9 @@ for (const u of UNIVERSITIES) {
 
 for (const u of USERS) {
   await step(`Usuario ${u.email}`, async () => {
-    const uni = ctx.universities.UMSA;
-    if (!uni) throw new Error('falta la universidad UMSA');
+    const code = u.university ?? 'UMSA';
+    const uni = ctx.universities[code];
+    if (!uni) throw new Error(`falta la universidad ${code}`);
     let { tokens, user, created } = await ensureUser({ email: u.email, password: cfg.password, universityId: uni.id });
     const changed = await ensureRoles(user, u.roles);
     if (changed) { // el JWT lleva los roles: se vuelve a iniciar sesión para obtener los nuevos

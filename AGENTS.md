@@ -48,7 +48,7 @@ verdad), `../bandadau-docs/docs/05-infraestructura/infraestructura.md` y
 | `dynamodb/` | `tables/*.json` (4 tablas) + `ttl.txt` + `create-tables.sh` |
 | `rabbitmq/` | `rabbitmq.conf`, `definitions.template.json`, `render-definitions.sh` → `definitions.json` (versionado; se regenera con `make rabbit-defs`) |
 | `minio/` | `init.sh` (buckets, usuarios por servicio, políticas) |
-| `seed/` `smoke/` | Node ESM sin dependencias; `seed/lib` es compartido. `seed.mjs` carga lo básico y `extra.mjs` los datos de demo ampliados (9 usuarios con perfil, seguidores, grupos, posts con foto generada, comentarios, reacciones, eventos con portada, recargas, inscripciones/tickets y limpieza de eventos de smoke); `node seed/seed.mjs --basic` omite lo ampliado |
+| `seed/` `smoke/` | Node ESM sin dependencias; `seed/lib` es compartido. `seed.mjs` carga lo básico y `extra.mjs` los datos de demo ampliados (12 usuarios con perfil (incluye 3 de UAGRM), seguidores, grupos, posts con foto generada, comentarios, reacciones, eventos con portada, recargas, inscripciones/tickets y limpieza de eventos de smoke); `node seed/seed.mjs --basic` omite lo ampliado |
 | `scripts/` | `gen-keys.sh`, `wait-healthy.sh`, `check-infra.sh`, `host-upstream.sh`, `clone-all.sh`, `create-github-repos.sh` |
 | `secrets/` | PEM de desarrollo generados por `make keys` (git-ignored) |
 | `mock/` | Gateway mock (Fastify + graphql) que imita `api.*` desde `bandadau-docs/contracts/`; `make mock*` |
