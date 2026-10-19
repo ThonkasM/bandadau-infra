@@ -19,9 +19,10 @@ async function uploadImage(token, { colors, seed, purpose, w = 640, h = 800 }) {
     });
     if (!up.ok) throw new Error(`createUpload: ${problem(up)}`);
     const { mediaId, uploadUrl, uploadHeaders } = up.json;
-    const put = await fetch(uploadUrl, { method: 'PUT', headers: uploadHeaders, body: bytes });
-    if (put.status === 403 && attempt < 2) continue;
-    if (!put.ok) throw new Error(`PUT ${uploadUrl.split('?')[0]} → ${put.status}`);
+    // 403 (URL vencida) o error de red (p. ej. una IP LAN antigua guardada en la respuesta idempotente): se reintenta con otra clave.
+    const put = await fetch(uploadUrl, { method: 'PUT', headers: uploadHeaders, body: bytes }).catch((e) => ({ ok: false, status: 0, error: e }));
+    if ((put.status === 403 || put.status === 0) && attempt < 2) continue;
+    if (!put.ok) throw new Error(`PUT ${uploadUrl.split('?')[0]} → ${put.status || put.error?.cause?.code || 'sin conexión'}`);
     const done = await request('POST', `${cfg.api}/media/${mediaId}/complete`, { token });
     if (!done.ok && done.status !== 409) throw new Error(`completeUpload: ${problem(done)}`);
     const asset = await poll(async () => {
