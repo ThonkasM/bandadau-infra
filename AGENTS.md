@@ -18,12 +18,12 @@ verdad), `../bandadau-docs/docs/05-infraestructura/infraestructura.md` y
    Compose solo los referencia (`build.context: ../bandadau-backend/services/<x>`; los servicios Node usan
    `context: ../bandadau-backend` + `additional_contexts: { shared: ../bandadau-shared }`). Si un Dockerfile
    necesita un cambio, se hace en una sesión/PR del componente dueño.
-3. **Barato por defecto**: un EC2 + RDS micro + DynamoDB on-demand + S3/CloudFront. Prohibido
-   agregar ALB, NAT Gateway, EKS/ECS, Multi-AZ, OpenSearch, MSK, etc. sin ADR con costo.
+3. **Barato por defecto** (ADR-0025): una VM por nube (EC2, Azure, GCP) unidas por Tailscale + DynamoDB on-demand; Postgres, Mongo y RabbitMQ en contenedores del EC2. Prohibido
+   agregar ALB, NAT Gateway, EKS/ECS, Multi-AZ, OpenSearch, MSK, RDS, CloudFront, etc. sin ADR con costo.
 4. **Dominio parametrizado**: siempre `${BASE_DOMAIN}`; nunca `bandadau.com` ni
    `bandada.localhost` escritos a mano en configuración.
-5. **Sin secretos en git.** Solo `.env.example` con valores de desarrollo. Producción: SSM
-   Parameter Store / Secrets Manager (ver `entornos-y-variables.md` §5).
+5. **Sin secretos en git.** Solo `.env.example` y `deploy/.env.*.example` (marcadores de secreto). Producción: `deploy/render-env.sh` genera `.env.<nube>` y `.secrets`
+   (git-ignored, permisos 600); ver `deploy/README.md` y ADR-0025.
 6. **Mínimo privilegio** (RNF-07): un usuario de Postgres por base, un usuario de Mongo por
    base, un usuario de RabbitMQ por servicio, políticas IAM por recurso. `/internal/**` → 403 en
    Traefik.
@@ -54,7 +54,8 @@ verdad), `../bandadau-docs/docs/05-infraestructura/infraestructura.md` y
 | `mock/` | Gateway mock (Fastify + graphql) que imita `api.*` desde `bandadau-docs/contracts/`; `make mock*` |
 | `n8n/` | workflows JSON (fase 2) — ver `n8n/AGENTS.md` |
 | `ci/templates/` | plantillas de GitHub Actions por repo (copiar a `<repo>/.github/workflows/ci.yml`) |
-| *(pendiente, fases posteriores)* | `observability/` (dashboards), `load/` (k6), `aws/` (CloudFormation, scripts de despliegue), `ci/actions/` |
+| `deploy/` | Despliegue multi-nube (ADR-0025): `docker-compose.{aws,azure,gcp}.yaml` (overrides del compose raíz), `.env.*.example`, `render-env.sh`, `deploy.sh`, `build-push.sh`, `dynamodb-create.sh`, `publish-static.sh`, `traefik/routers.prod.yml`, `nginx/`; ver `deploy/README.md` |
+| *(pendiente, fases posteriores)* | `observability/` (dashboards), `load/` (k6), `ci/actions/` (el despliegue vigente es `deploy/`; `aws/` con CloudFormation quedó archivado en ADR-0025) |
 
 ## Comandos (desde `bandadau-infra/`)
 

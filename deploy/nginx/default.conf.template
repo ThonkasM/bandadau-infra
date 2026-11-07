@@ -1,0 +1,55 @@
+# nginx de estáticos (ADR-0025). La imagen oficial reemplaza ${BASE_DOMAIN} al arrancar (envsubst de /etc/nginx/templates).
+# Traefik termina TLS y reenvía con la cabecera Host original; aquí solo se elige la carpeta por host.
+# Carpetas bajo /usr/share/nginx/sites (volumen del host, ver deploy/publish-static.sh):
+#   landing/  app/  admin/  mfe/ (con moderation/ e insights/)
+
+# Respuesta por defecto y healthcheck del contenedor
+server {
+    listen 80 default_server;
+    server_name _;
+    location = /healthz { access_log off; default_type text/plain; return 200 "ok\n"; }
+    location / { return 404; }
+}
+
+# HTML, JSON (manifiestos), service worker: siempre revalidar; el resto, caché corta
+map $uri $cache_control {
+    default                         "public, max-age=3600";
+    ~*\.(html|json|webmanifest)$    "no-cache";
+    ~*(^|/)sw\.js$                  "no-cache";
+}
+
+# Landing (Next.js static export: /es/ y /en/)
+server {
+    listen 80;
+    server_name ${BASE_DOMAIN} www.${BASE_DOMAIN};
+    root /usr/share/nginx/sites/landing;
+    add_header Cache-Control $cache_control always;
+    location / { try_files $uri $uri/ $uri.html =404; }
+}
+
+# App web / PWA (Expo export: SPA con service worker)
+server {
+    listen 80;
+    server_name app.${BASE_DOMAIN};
+    root /usr/share/nginx/sites/app;
+    add_header Cache-Control $cache_control always;
+    location / { try_files $uri $uri/ /index.html; }
+}
+
+# Panel: shell de microfrontends (Next.js static export)
+server {
+    listen 80;
+    server_name admin.${BASE_DOMAIN};
+    root /usr/share/nginx/sites/admin;
+    add_header Cache-Control $cache_control always;
+    location / { try_files $uri $uri/ $uri.html =404; }
+}
+
+# Microfrontends: /moderation/... y /insights/... (CORS lo añade Traefik con el middleware `cors`)
+server {
+    listen 80;
+    server_name mfe.${BASE_DOMAIN};
+    root /usr/share/nginx/sites/mfe;
+    add_header Cache-Control $cache_control always;
+    location / { try_files $uri =404; }
+}

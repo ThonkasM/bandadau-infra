@@ -1,0 +1,236 @@
+# =============================================================================
+# Bandada U — VM de AWS (EC2). ADR-0025.  Es un OVERRIDE del docker-compose.yaml de la raíz: se usa SIEMPRE junto a él.
+#
+#   docker compose --env-file deploy/.env.aws -f docker-compose.yaml -f deploy/docker-compose.aws.yaml \
+#       --profile infra --profile services up -d
+#   (deploy/deploy.sh aws lo hace por ti)
+#
+# Qué corre aquí: traefik (TLS Let's Encrypt), postgres, mongo, rabbitmq, minio, mailpit, n8n, nginx (estáticos) y los
+# servicios identity, social, media, ticketing, notification (+worker, +relay), insights, admin-gateway.
+# Qué NO corre aquí: events-service (Azure), wallet-service/worker/relay (GCP), dynamodb-local (DynamoDB real), lgtm, ollama.
+#
+# Etiquetas YAML: `!override` reemplaza la lista del compose base; `!reset` la vacía o elimina la clave (Compose >= 2.24).
+# Las rutas relativas se resuelven desde bandadau-infra/ (carpeta del primer -f).
+# =============================================================================
+
+# Imágenes: ghcr.io/$GHCR_OWNER/bandada-<servicio>:<TAG_<SERVICIO> o IMAGE_TAG> (ver deploy/README.md)
+
+# Cambios comunes a todos los servicios de AWS
+x-prod-env: &prod-env
+  APP_ENV: production
+  NODE_ENV: production
+  JWT_ISSUER: https://api.${BASE_DOMAIN}
+  CORS_ORIGINS: ${CORS_ORIGINS}
+  OTEL_SDK_DISABLED: "true"
+  # DynamoDB REAL: sin endpoint local y sin llaves; el SDK usa el rol de la instancia (IMDS)
+  DYNAMODB_ENDPOINT: !reset null
+  AWS_ACCESS_KEY_ID: !reset null
+  AWS_SECRET_ACCESS_KEY: !reset null
+
+x-notification-prod: &notification-prod
+  <<: *prod-env
+  APP_DEEP_LINK_BASE: https://app.${BASE_DOMAIN}
+  MAIL_FROM_ADDRESS: no-reply@${BASE_DOMAIN}
+  VAPID_SUBJECT: mailto:no-reply@${BASE_DOMAIN}
+
+x-no-published-ports: &no-ports
+  ports: !reset []
+
+services:
+  # ---- Servicios que NO corren en este host ------------------------------------------------------------------
+  dynamodb-local: { profiles: !override [disabled] }
+  dynamodb-init:  { profiles: !override [disabled] }
+  events-service: { profiles: !override [disabled] }   # corre en Azure
+  wallet-service: { profiles: !override [disabled] }   # corre en GCP
+  wallet-worker:  { profiles: !override [disabled] }
+  wallet-relay:   { profiles: !override [disabled] }
+  lgtm:           { profiles: !override [disabled] }
+  ollama:         { profiles: !override [disabled] }
+
+  # ---- Infraestructura ---------------------------------------------------------------------------------------
+  traefik:
+    ports: !override
+      - "80:80"
+      - "443:443"
+    # Configuración estática por flags (no por archivo): el correo de ACME sale de ACME_EMAIL
+    command: !override
+      - --global.checkNewVersion=false
+      - --global.sendAnonymousUsage=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.traefik.address=:8080
+      - --ping=true
+      - --ping.entrypoint=traefik
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+      - --metrics.prometheus=true
+      - --metrics.prometheus.entrypoint=traefik
+      - --log.level=INFO
+      - --accesslog=true
+      - --accesslog.format=json
+      - --accesslog.filters.statuscodes=400-599
+    environment:
+      BASE_DOMAIN: ${BASE_DOMAIN}
+      LAN_HOST: ""
+      TS_IP_AZURE: ${TS_IP_AZURE}
+      TS_IP_GCP: ${TS_IP_GCP}
+    volumes: !override
+      - ./traefik/dynamic/middlewares.yml:/etc/traefik/dynamic/middlewares.yml:ro
+      - ./deploy/traefik/routers.prod.yml:/etc/traefik/dynamic/routers.yml:ro
+      - ./deploy/traefik/ops.htpasswd:/etc/traefik/ops.htpasswd:ro
+      - traefik-letsencrypt:/letsencrypt
+    extra_hosts: !reset []
+
+  # Postgres y RabbitMQ se publican SOLO en la IP Tailscale del EC2: es lo único que ven Azure y GCP
+  postgres:
+    ports: !override
+      - "${TS_IP_AWS}:5432:5432"
+
+  rabbitmq:
+    ports: !override
+      - "${TS_IP_AWS}:5672:5672"
+    volumes: !override
+      - rabbitmq-data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/conf.d/20-bandada.conf:ro
+      # generado con contraseñas de producción por deploy.sh (no se versiona)
+      - ./deploy/rabbitmq/definitions.prod.json:/etc/rabbitmq/definitions.json:ro
+
+  mongo:
+    ports: !reset []
+
+  minio:
+    <<: *no-ports
+    environment:
+      MINIO_API_CORS_ALLOW_ORIGIN: ${CORS_ORIGINS}
+
+  mailpit:
+    # UI/API solo en la IP Tailscale (el seed lee de aquí los códigos de verificación); al público, por Traefik con basic auth
+    ports: !override
+      - "${TS_IP_AWS}:8025:8025"
+
+  n8n:
+    <<: *no-ports
+    environment:
+      N8N_PROTOCOL: https
+      N8N_SECURE_COOKIE: "true"
+      WEBHOOK_URL: https://n8n.${BASE_DOMAIN}/
+      N8N_PUBLIC_URL: https://n8n.${BASE_DOMAIN}
+      BANDADA_API_URL: https://api.${BASE_DOMAIN}/api/v1
+      BANDADA_ADMIN_URL: https://admin.${BASE_DOMAIN}
+      BANDADA_APP_URL: https://app.${BASE_DOMAIN}
+      BANDADA_EVENTS_INTERNAL_URL: http://${TS_IP_AZURE}:7004   # events vive en Azure
+
+  # Frontends estáticos (reemplaza S3 + CloudFront): landing, app, admin-shell y mfes
+  static:
+    image: nginx:1.28-alpine
+    profiles: [services]
+    restart: unless-stopped
+    init: true
+    networks: [bandada]
+    environment:
+      BASE_DOMAIN: ${BASE_DOMAIN}
+    volumes:
+      - ./deploy/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ${SITES_DIR:-./sites}:/usr/share/nginx/sites:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz | grep -q ok"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    mem_limit: 64m
+
+  # ---- Servicios (imágenes de GHCR; sin `build`) ----------------------------------------------------------------
+  identity-service:
+    image: ghcr.io/${GHCR_OWNER}/bandada-identity-service:${TAG_IDENTITY_SERVICE:-${IMAGE_TAG}}
+    build: !reset null
+    ports: !override
+      - "${TS_IP_AWS}:7001:7001"   # JWKS y token de servicio para Azure y GCP, solo por Tailscale
+    environment:
+      <<: *prod-env
+      APP_BASE_URL: https://app.${BASE_DOMAIN}
+      ADMIN_BASE_URL: https://admin.${BASE_DOMAIN}
+      MAIL_FROM: no-reply@${BASE_DOMAIN}
+
+  social-service:
+    image: ghcr.io/${GHCR_OWNER}/bandada-social-service:${TAG_SOCIAL_SERVICE:-${IMAGE_TAG}}
+    build: !reset null
+    <<: *no-ports
+    environment:
+      <<: *prod-env
+    depends_on: !override
+      mongo-init: { condition: service_completed_successfully }
+      rabbitmq: { condition: service_healthy }
+
+  media-service:
+    image: ghcr.io/${GHCR_OWNER}/bandada-media-service:${TAG_MEDIA_SERVICE:-${IMAGE_TAG}}
+    build: !reset null
+    ports: !override
+      - "${TS_IP_AWS}:7003:7003"   # events-service (Azure) valida portadas contra media
+    environment:
+      <<: *prod-env
+      S3_PUBLIC_ENDPOINT: https://s3.${BASE_DOMAIN}
+    depends_on: !override
+      mongo-init: { condition: service_completed_successfully }
+      minio-init: { condition: service_completed_successfully }
+      rabbitmq: { condition: service_healthy }
+
+  ticketing-service:
+    image: ghcr.io/${GHCR_OWNER}/bandada-ticketing-service:${TAG_TICKETING_SERVICE:-${IMAGE_TAG}}
+    build: !reset null
+    <<: *no-ports
+    environment:
+      <<: *prod-env
+      EVENTS_SERVICE_URL: http://${TS_IP_AZURE}:7004   # events vive en Azure
+    depends_on: !override
+      rabbitmq: { condition: service_healthy }
+
+  insights-service:
+    image: ghcr.io/${GHCR_OWNER}/bandada-insights-service:${TAG_INSIGHTS_SERVICE:-${IMAGE_TAG}}
+    build: !reset null
+    <<: *no-ports
+    environment:
+      <<: *prod-env
+      S3_PUBLIC_ENDPOINT: https://s3.${BASE_DOMAIN}
+      EVENTS_SERVICE_URL: http://${TS_IP_AZURE}:7004
+      WALLET_SERVICE_URL: http://${TS_IP_GCP}:7005
+      MCP_ALLOWED_ORIGINS: https://api.${BASE_DOMAIN},https://admin.${BASE_DOMAIN}
+    depends_on: !override
+      rabbitmq: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
+      identity-service: { condition: service_healthy }
+
+  notification-service:
+    image: ghcr.io/${GHCR_OWNER}/bandada-notification-service:${TAG_NOTIFICATION_SERVICE:-${IMAGE_TAG}}
+    build: !reset null
+    <<: *no-ports
+    environment: *notification-prod
+    depends_on: !override
+      rabbitmq: { condition: service_healthy }
+      mailpit: { condition: service_healthy }
+
+  notification-worker:
+    image: ghcr.io/${GHCR_OWNER}/bandada-notification-service:${TAG_NOTIFICATION_SERVICE:-${IMAGE_TAG}}
+    build: !reset null
+    environment: *notification-prod
+
+  notification-relay:
+    image: ghcr.io/${GHCR_OWNER}/bandada-notification-service:${TAG_NOTIFICATION_SERVICE:-${IMAGE_TAG}}
+    build: !reset null
+    environment: *notification-prod
+
+  admin-gateway:
+    image: ghcr.io/${GHCR_OWNER}/bandada-admin-gateway:${TAG_ADMIN_GATEWAY:-${IMAGE_TAG}}
+    build: !reset null
+    <<: *no-ports
+    environment:
+      <<: *prod-env
+      EVENTS_SERVICE_URL: http://${TS_IP_AZURE}:7004
+      WALLET_SERVICE_URL: http://${TS_IP_GCP}:7005
+
+volumes:
+  traefik-letsencrypt:

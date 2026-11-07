@@ -438,7 +438,7 @@ if (env('SMOKE_INSIGHTS', '1') === '0' && only !== 'insights') {
     }, { timeoutMs: 90000 });
     expect(done, 'el reporte no terminó en 90 s');
     expect(done.status === 'READY', `reporte ${done.status}: ${done.failureReason}`);
-    expect(done.locale === 'es' && /Limitaciones/.test(done.markdown ?? ''), 'el markdown no está en español');
+    expect(done.locale === 'es' && /\b(los|las|del|hubo|inscripciones|créditos)\b/i.test(done.markdown ?? ''), 'el markdown no está en español'); // el texto lo redacta un LLM: no se exige un encabezado fijo
     expect(Array.isArray(done.dataset?.rows) && done.dataset.rows.length > 0, 'dataset vacío');
     expect(done.chart?.$schema?.includes('vega-lite'), 'falta el gráfico Vega-Lite');
     expect(!/#[0-9a-f]{3,6}\b/i.test(JSON.stringify(done.chart)), 'el gráfico no debe llevar colores (D13)');
@@ -459,7 +459,7 @@ if (env('SMOKE_INSIGHTS', '1') === '0' && only !== 'insights') {
       const g = await request('GET', `${cfg.api}/insights/reports/${r.json.reportId}`, { token: adminToken });
       return g.ok && ['READY', 'FAILED'].includes(g.json.status) ? g.json : null;
     }, { timeoutMs: 90000 });
-    expect(done?.status === 'READY' && /Limitations/.test(done.markdown ?? ''), `reporte en inglés ${done?.status}`);
+    expect(done?.status === 'READY' && /\b(the|were|registrations|credits)\b/i.test(done.markdown ?? ''), `reporte en inglés ${done?.status}`); // texto redactado por un LLM: sin encabezado fijo
   });
   await step('Monitoreo: runMonitoringNow (interno) → SUCCEEDED', async () => {
     const t = await request('POST', `${cfg.identityInternal}/api/v1/auth/service-token`, { body: { clientId: cfg.seedClientId, clientSecret: cfg.seedClientSecret, scopes: ['internal:read', 'internal:write'] } });

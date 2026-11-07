@@ -1,0 +1,31 @@
+# =============================================================================
+# Bandada U — VM de Azure: SOLO events-service (orquestador de la SAGA). ADR-0025.
+# Override del docker-compose.yaml de la raíz; se arranca nombrando el servicio y con --no-deps (deploy/deploy.sh azure):
+#   docker compose --env-file deploy/.env.azure -f docker-compose.yaml -f deploy/docker-compose.azure.yaml \
+#       up -d --no-deps events-service
+#
+# Todo lo que necesita está en AWS y se alcanza por la red privada Tailscale (TS_IP_AWS):
+#   Postgres :5432 (events_db) · RabbitMQ :5672 · identity :7001 (JWKS, token de servicio) · media :7003 (portadas)
+# events-service NO usa DynamoDB (el depends_on de dynamodb-init del compose base solo existe para local).
+# Esta VM no abre puertos públicos: events publica 7004 únicamente en su IP Tailscale; Traefik (AWS) la usa de upstream.
+# =============================================================================
+services:
+  events-service:
+    image: ghcr.io/${GHCR_OWNER}/bandada-events-service:${TAG_EVENTS_SERVICE:-${IMAGE_TAG}}
+    build: !reset null
+    ports: !override
+      - "${TS_IP_AZURE}:7004:7004"
+    depends_on: !reset {}
+    environment:
+      APP_ENV: production
+      OTEL_SDK_DISABLED: "true"
+      DYNAMODB_ENDPOINT: !reset null
+      AWS_ACCESS_KEY_ID: !reset null
+      AWS_SECRET_ACCESS_KEY: !reset null
+      JWT_ISSUER: https://api.${BASE_DOMAIN}
+      JWKS_URL: http://${TS_IP_AWS}:7001/.well-known/jwks.json
+      RABBITMQ_URL: amqp://${RABBITMQ_EVENTS_SERVICE_USER:-events-service}:${RABBITMQ_EVENTS_SERVICE_PASSWORD}@${TS_IP_AWS}:5672
+      DATABASE_URL: jdbc:postgresql://${TS_IP_AWS}:5432/events_db
+      DATABASE_PASSWORD: ${EVENTS_DB_PASSWORD}
+      MEDIA_SERVICE_URL: http://${TS_IP_AWS}:7003
+      SERVICE_CLIENT_SECRET: ${EVENTS_SERVICE_CLIENT_SECRET}

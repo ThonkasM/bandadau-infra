@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.*.example
 *.pem
 *.p8
 *.key
@@ -22,3 +23,9 @@ volumes/
 aws/params/*.env
 !aws/params/*.env.example
 .n8n-export/
+
+# Despliegue multi-nube (ADR-0025): secretos generados y archivos con valores reales
+deploy/.secrets
+deploy/traefik/ops.htpasswd
+deploy/rabbitmq/definitions.prod.json
+sites/

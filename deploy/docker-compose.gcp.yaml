@@ -1,0 +1,45 @@
+# =============================================================================
+# Bandada U — VM de GCP: wallet-service + wallet-worker + wallet-relay (misma imagen, tres roles). ADR-0025.
+# Override del docker-compose.yaml de la raíz; se arranca nombrando los servicios y con --no-deps (deploy/deploy.sh gcp):
+#   docker compose --env-file deploy/.env.gcp -f docker-compose.yaml -f deploy/docker-compose.gcp.yaml \
+#       up -d --no-deps wallet-service wallet-worker wallet-relay
+#
+# Alcanza por la red privada Tailscale (TS_IP_AWS): Postgres :5432 (wallet_db) y RabbitMQ :5672.
+# Es el único servicio fuera de AWS que usa DynamoDB real (tabla bandada-idempotency, prefijo `wallet-service#`):
+# necesita un usuario IAM mínimo (WALLET_AWS_ACCESS_KEY_ID / WALLET_AWS_SECRET_ACCESS_KEY; ver guia-despliegue.md).
+# Esta VM no abre puertos públicos: wallet publica 7005 únicamente en su IP Tailscale; Traefik (AWS) la usa de upstream.
+# =============================================================================
+x-wallet-prod: &wallet-prod
+  APP_ENV: production
+  OTEL_SDK_DISABLED: "true"
+  JWT_ISSUER: https://api.${BASE_DOMAIN}
+  JWKS_URL: http://${TS_IP_AWS}:7001/.well-known/jwks.json
+  RABBITMQ_URL: amqp://${RABBITMQ_WALLET_SERVICE_USER:-wallet-service}:${RABBITMQ_WALLET_SERVICE_PASSWORD}@${TS_IP_AWS}:5672
+  DB_HOST: ${TS_IP_AWS}
+  DB_PASSWORD: ${WALLET_DB_PASSWORD}
+  # La red Tailscale ya cifra el tráfico; el Postgres del EC2 no tiene TLS propio
+  DB_SSLMODE: prefer
+  PAYMENT_CHECKOUT_BASE_URL: https://app.${BASE_DOMAIN}/wallet/checkout
+  # DynamoDB REAL con el usuario IAM de wallet (sin endpoint local)
+  DYNAMODB_ENDPOINT: !reset null
+  AWS_ACCESS_KEY_ID: ${WALLET_AWS_ACCESS_KEY_ID}
+  AWS_SECRET_ACCESS_KEY: ${WALLET_AWS_SECRET_ACCESS_KEY}
+
+services:
+  wallet-service:
+    image: ghcr.io/${GHCR_OWNER}/bandada-wallet-service:${TAG_WALLET_SERVICE:-${IMAGE_TAG}}
+    build: !reset null
+    ports: !override
+      - "${TS_IP_GCP}:7005:7005"
+    depends_on: !reset {}
+    environment: *wallet-prod
+
+  wallet-worker:
+    image: ghcr.io/${GHCR_OWNER}/bandada-wallet-service:${TAG_WALLET_SERVICE:-${IMAGE_TAG}}
+    build: !reset null
+    environment: *wallet-prod
+
+  wallet-relay:
+    image: ghcr.io/${GHCR_OWNER}/bandada-wallet-service:${TAG_WALLET_SERVICE:-${IMAGE_TAG}}
+    build: !reset null
+    environment: *wallet-prod
