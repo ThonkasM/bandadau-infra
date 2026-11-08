@@ -1,11 +1,22 @@
 // Datos de demo del contrato de la fase 1 (§3.5).
-export const UNIVERSITIES = [
+// Perfil de la demo: SEED_PROFILE=uagrm deja SOLO la Universidad Autónoma Gabriel René Moreno (dominio uagrm.edu.bo),
+// pasa todos los usuarios de demo a @uagrm.edu.bo y cambia las menciones a UMSA. Sin perfil, todo queda como estaba.
+const UAGRM_PROFILE = (process.env.SEED_PROFILE ?? '').toLowerCase() === 'uagrm';
+const deep = (v) => typeof v === 'string'
+  ? v.replaceAll('@umsa.edu.bo', '@uagrm.edu.bo').replaceAll('#umsa', '#uagrm').replaceAll('UMSA', 'UAGRM')
+  : Array.isArray(v) ? v.map(deep)
+  : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, deep(x)]))
+  : v;
+const prof = (x) => (UAGRM_PROFILE ? deep(x) : x);
+export const DEFAULT_UNIVERSITY = UAGRM_PROFILE ? 'UAGRM' : 'UMSA';
+
+const UNIVERSITIES__ = [
   { code: 'UMSA', name: 'Universidad Mayor de San Andrés', domain: 'umsa.edu.bo' },
   { code: 'UCB', name: 'Universidad Católica Boliviana', domain: 'ucb.edu.bo' },
   { code: 'UAGRM', name: 'Universidad Autónoma Gabriel René Moreno', domain: 'uagrm.edu.bo' },
 ];
 
-export const USERS = [
+const USERS__ = [
   { key: 'admin', email: 'admin@umsa.edu.bo', roles: ['STUDENT', 'ADMIN'] },
   { key: 'mod', email: 'mod@umsa.edu.bo', roles: ['STUDENT', 'MODERATOR'] },
   { key: 'org', email: 'org@umsa.edu.bo', roles: ['STUDENT', 'ORGANIZER'] },
@@ -21,23 +32,23 @@ export const USERS = [
   { key: 'diegoy', email: 'diego.yebara@uagrm.edu.bo', roles: ['STUDENT'], university: 'UAGRM' },
 ];
 
-export const GROUP = { name: 'Ingeniería de Software II', subject: 'Ingeniería de Software', privacy: 'PUBLIC' };
+const GROUP__ = { name: 'Ingeniería de Software II', subject: 'Ingeniería de Software', privacy: 'PUBLIC' };
 
-export const POSTS = [
+const POSTS__ = [
   { author: 'lucia', slug: 'welcome', text: '¡Hola Bandada! Primer día en la U. #bienvenida #umsa', visibility: 'PUBLIC' },
   { author: 'marco', slug: 'study', text: '¿Alguien arma un grupo de estudio para Ingeniería de Software II? #estudio', visibility: 'PUBLIC' },
   { author: 'lucia', slug: 'group', text: 'Resumen de la clase de ICONIX en el grupo. #iconix', visibility: 'GROUP' },
 ];
 
 const days = (n) => new Date(Date.now() + n * 86400000).toISOString().replace(/\.\d{3}Z$/, 'Z');
-export const EVENTS = [
+const EVENTS__ = [
   { title: 'Taller gratuito de Git y GitHub', description: 'Aprende ramas, pull requests y flujo de trabajo en equipo. Trae tu laptop.', venue: 'Laboratorio 3, Facultad de Ingeniería, UMSA', capacity: 50, priceCredits: 0, startsAt: () => days(7) },
   { title: 'Taller de Docker (20 créditos)', description: 'Contenedores desde cero: imágenes, redes y Compose.', venue: 'Auditorio de la Facultad de Ingeniería, UMSA', capacity: 40, priceCredits: 20, startsAt: () => days(14) },
   { title: 'Charla magistral (cupo 1)', description: 'Evento de cupo único para probar el caso EVENT_FULL.', venue: 'Sala de reuniones, Centro de Estudiantes', capacity: 1, priceCredits: 0, startsAt: () => days(21) },
 ];
 
 // ---- Datos ampliados (seed/extra.mjs): perfiles, publicaciones con foto, comentarios, eventos con portada, tickets ----
-export const PROFILES = {
+const PROFILES__ = {
   admin: { displayName: 'Administración Bandada', career: 'Ingeniería de Sistemas', semester: 10, bio: 'Cuenta de administración de la plataforma.', interests: ['gestión', 'moderación'] },
   mod: { displayName: 'Moderación Bandada', career: 'Psicología', semester: 8, bio: 'Cuidamos la comunidad.', interests: ['comunidad'] },
   org: { displayName: 'Carlos Organizador', career: 'Ingeniería de Sistemas', semester: 9, bio: 'Organizo talleres y charlas de la carrera.', interests: ['eventos', 'devops', 'software'] },
@@ -52,12 +63,12 @@ export const PROFILES = {
   camila: { displayName: 'Camila Vargas', career: 'Medicina', semester: 3, bio: 'Anatomía y buenos hábitos de estudio.', interests: ['salud', 'running'] },
 };
 
-export const FOLLOWS = [
+const FOLLOWS__ = [
   ['lucia', 'marco'], ['marco', 'lucia'], ['lucia', 'sofia'], ['sofia', 'lucia'], ['diego', 'lucia'], ['camila', 'lucia'],
   ['lucia', 'org'], ['marco', 'org'], ['sofia', 'org2'], ['diego', 'org2'], ['camila', 'org'],
 ];
 
-export const GROUPS_EXTRA = [
+const GROUPS_EXTRA__ = [
   { owner: 'sofia', name: 'Diseño y Arquitectura', subject: 'Diseño', privacy: 'PUBLIC', members: ['lucia', 'camila'] },
   { owner: 'diego', name: 'Robótica UMSA', subject: 'Electrónica', privacy: 'PUBLIC', members: ['lucia', 'marco'] },
 ];
@@ -70,7 +81,7 @@ const NIGHT = [[10, 31, 102], [4, 16, 46]];
 const TEAL = [[20, 140, 130], [12, 70, 100]];
 const SUNSET = [[245, 120, 70], [140, 40, 110]];
 
-export const POSTS_EXTRA = [
+const POSTS_EXTRA__ = [
   { author: 'sofia', slug: 'maqueta', text: 'Terminando la maqueta del proyecto final. ¡Ya casi! #arquitectura #umsa', visibility: 'PUBLIC', image: { colors: SUNSET, seed: 11 } },
   { author: 'diego', slug: 'dron', text: 'Primer vuelo de nuestro dron con control PID. Gracias al equipo de Robótica 🚁 #robotica #iot', visibility: 'PUBLIC', image: { colors: SKY, seed: 12 } },
   { author: 'lucia', slug: 'apuntes-bd', text: 'Subí mis apuntes de Bases de Datos (normalización y SQL). ¡Úsenlos! #apuntes #basesdedatos', visibility: 'PUBLIC', image: { colors: BLUE, seed: 13 } },
@@ -84,7 +95,7 @@ export const POSTS_EXTRA = [
 ];
 
 // Comentarios: [autor, slug del post, texto]
-export const COMMENTS = [
+const COMMENTS__ = [
   ['marco', 'apuntes-bd', '¡Gracias Lucía! Justo lo que necesitaba para el parcial.'],
   ['sofia', 'apuntes-bd', 'Muy claros, me sirvieron mucho. 🙌'],
   ['diego', 'apuntes-bd', '¿Tienes también los de Estructuras de Datos?'],
@@ -98,7 +109,7 @@ export const COMMENTS = [
 ];
 
 // Reacciones: [usuarios, slug, tipo]
-export const REACTIONS = [
+const REACTIONS__ = [
   [['lucia', 'marco', 'diego', 'camila'], 'maqueta', 'LIKE'],
   [['lucia', 'sofia', 'camila', 'marco', 'org'], 'dron', 'LIKE'],
   [['marco', 'sofia', 'diego', 'camila'], 'apuntes-bd', 'HELPFUL'],
@@ -109,7 +120,7 @@ export const REACTIONS = [
   [['sofia', 'marco'], 'running', 'SUPPORT'],
 ];
 
-export const EVENTS_EXTRA = [
+const EVENTS_EXTRA__ = [
   { title: 'Hackathon Bandada U', description: '24 horas construyendo soluciones para la vida universitaria. Equipos de hasta 4 personas, mentores y premios.', venue: 'Auditorio Principal, UMSA', capacity: 120, priceCredits: 15, startsAt: () => days(12), by: 'org2', cover: { colors: TEAL, seed: 21 } },
   { title: 'Feria de Software 2026', description: 'Proyectos de estudiantes, demos en vivo y reclutadores de empresas locales.', venue: 'Patio Central, Facultad de Ingeniería', capacity: 300, priceCredits: 0, startsAt: () => days(18), by: 'org2', cover: { colors: SKY, seed: 22 } },
   { title: 'Charla: IA responsable en la universidad', description: 'Cómo usar la IA de forma ética en tus estudios y proyectos.', venue: 'Sala Magna, Edificio Central', capacity: 80, priceCredits: 5, startsAt: () => days(9), by: 'org', cover: { colors: NIGHT, seed: 23 } },
@@ -119,7 +130,7 @@ export const EVENTS_EXTRA = [
 ];
 
 // Inscripciones de demo: [usuario, título del evento]
-export const REGISTRATIONS = [
+const REGISTRATIONS__ = [
   ['lucia', 'Taller de Docker (20 créditos)'],
   ['lucia', 'Hackathon Bandada U'],
   ['marco', 'Taller gratuito de Git y GitHub'],
@@ -129,4 +140,19 @@ export const REGISTRATIONS = [
 ];
 
 // Recargas de demo: [usuario, paquete]
-export const TOPUPS = [['marco', 'CREDITS_50'], ['sofia', 'CREDITS_50'], ['diego', 'CREDITS_100'], ['camila', 'CREDITS_20']];
+const TOPUPS__ = [['marco', 'CREDITS_50'], ['sofia', 'CREDITS_50'], ['diego', 'CREDITS_100'], ['camila', 'CREDITS_20']];
+
+export const UNIVERSITIES = UAGRM_PROFILE ? UNIVERSITIES__.filter((u) => u.code === 'UAGRM') : UNIVERSITIES__;
+export const USERS = prof(USERS__);
+export const GROUP = prof(GROUP__);
+export const POSTS = prof(POSTS__);
+export const EVENTS = prof(EVENTS__);
+export const PROFILES = prof(PROFILES__);
+export const FOLLOWS = prof(FOLLOWS__);
+export const GROUPS_EXTRA = prof(GROUPS_EXTRA__);
+export const POSTS_EXTRA = prof(POSTS_EXTRA__);
+export const COMMENTS = prof(COMMENTS__);
+export const REACTIONS = prof(REACTIONS__);
+export const EVENTS_EXTRA = prof(EVENTS_EXTRA__);
+export const REGISTRATIONS = prof(REGISTRATIONS__);
+export const TOPUPS = prof(TOPUPS__);

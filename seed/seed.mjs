@@ -7,7 +7,7 @@ import { stableUuid } from './lib/ids.mjs';
 import { createReport } from './lib/report.mjs';
 import { mailpitAvailable } from './lib/mailpit.mjs';
 import { ensureUniversity, ensureUser, ensureRoles, login } from './lib/identity.mjs';
-import { UNIVERSITIES, USERS, GROUP, POSTS, EVENTS } from './lib/demo-data.mjs';
+import { UNIVERSITIES, USERS, GROUP, POSTS, EVENTS, DEFAULT_UNIVERSITY } from './lib/demo-data.mjs';
 import { seedExtra } from './extra.mjs';
 
 const report = createReport('Seed Bandada U (fase 1)');
@@ -39,7 +39,7 @@ for (const u of UNIVERSITIES) {
 
 for (const u of USERS) {
   await step(`Usuario ${u.email}`, async () => {
-    const code = u.university ?? 'UMSA';
+    const code = u.university ?? DEFAULT_UNIVERSITY;
     const uni = ctx.universities[code];
     if (!uni) throw new Error(`falta la universidad ${code}`);
     let { tokens, user, created } = await ensureUser({ email: u.email, password: cfg.password, universityId: uni.id });

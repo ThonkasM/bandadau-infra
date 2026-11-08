@@ -29,3 +29,6 @@ deploy/.secrets
 deploy/traefik/ops.htpasswd
 deploy/rabbitmq/definitions.prod.json
 sites/
+
+# Claves generadas para el despliegue (ADR-0026)
+deploy/.ops-credentials
