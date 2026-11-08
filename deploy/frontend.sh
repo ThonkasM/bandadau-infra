@@ -84,7 +84,7 @@ publish_mfe() { # moderation|insights
   local tmp; tmp="$(mktemp -d)"
   write_manifest "$tmp/mfe-manifest.json"
   if [[ "${DRY_RUN:-0}" == 1 ]]; then echo "[dry-run] scp mfe-manifest.json $TARGET:$SITES/admin/"; else
-    scp -q "$tmp/mfe-manifest.json" "$TARGET:$SITES/admin/mfe-manifest.json"; fi
+    ssh "$TARGET" "mkdir -p '$SITES/admin'" && scp -q "$tmp/mfe-manifest.json" "$TARGET:$SITES/admin/mfe-manifest.json"; fi
   rm -rf "$tmp"
   echo "mfe $1 $v publicado y manifiesto actualizado"
 }
