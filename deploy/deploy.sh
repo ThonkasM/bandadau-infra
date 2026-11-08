@@ -27,8 +27,8 @@ if [[ "${PUSH_ENV:-0}" == "1" ]]; then
   echo "enviado deploy/.env.$CLOUD a $TARGET"
 fi
 
-# El resto corre en la VM (bash de Linux). Argumentos: nube servicio tag directorio git-pull
-ssh "$TARGET" bash -s -- "$CLOUD" "$SVC" "$TAG" "$REMOTE_DIR" "${DEPLOY_GIT_PULL:-1}" <<'REMOTE'
+# El resto corre en la VM (bash de Linux). Argumentos: nube servicio tag directorio git-pull (con %q para que los vacíos no se pierdan por SSH)
+ssh "$TARGET" "bash -s -- $(printf '%q ' "$CLOUD" "$SVC" "$TAG" "$REMOTE_DIR" "${DEPLOY_GIT_PULL:-1}")" <<'REMOTE'
 set -euo pipefail
 CLOUD="$1"; SVC="$2"; TAG="$3"; DIR="$4"; PULL="$5"
 cd "$DIR"
