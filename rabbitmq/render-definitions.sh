@@ -31,5 +31,8 @@ sed -e "s|__RABBITMQ_DEFAULT_USER__|$(esc "$RABBITMQ_DEFAULT_USER")|g" \
     -e "s|__RABBITMQ_MONITOR_PASSWORD__|$(esc "$RABBITMQ_MONITOR_PASSWORD")|g" \
     "${SVC_SED[@]}" \
     definitions.template.json > definitions.json
-node -e 'JSON.parse(require("fs").readFileSync("definitions.json","utf8"))'
+# valida el JSON con lo que haya (en las VMs de despliegue no hay node)
+if command -v node >/dev/null 2>&1; then node -e 'JSON.parse(require("fs").readFileSync("definitions.json","utf8"))'
+elif command -v jq >/dev/null 2>&1; then jq empty definitions.json
+elif command -v python3 >/dev/null 2>&1; then python3 -c 'import json;json.load(open("definitions.json"))'; fi
 echo "rabbitmq/definitions.json generado"
