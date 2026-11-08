@@ -19,7 +19,7 @@ verdad), `../bandadau-docs/docs/05-infraestructura/infraestructura.md` y
    `context: ../bandadau-backend` + `additional_contexts: { shared: ../bandadau-shared }`). Si un Dockerfile
    necesita un cambio, se hace en una sesión/PR del componente dueño.
 3. **Barato por defecto** (ADR-0025): una VM por nube (EC2, Azure, GCP) unidas por Tailscale + DynamoDB on-demand; Postgres, Mongo y RabbitMQ en contenedores del EC2. Prohibido
-   agregar ALB, NAT Gateway, EKS/ECS, Multi-AZ, OpenSearch, MSK, RDS, CloudFront, etc. sin ADR con costo.
+   agregar ALB, NAT Gateway, EKS/ECS, Multi-AZ, OpenSearch, MSK, RDS, etc. sin ADR con costo. **CloudFront (una distribución), ACM y Route 53 están aprobados por ADR-0026**; AWS se crea con `terraform/aws/` y se borra con `make aws-destroy`.
 4. **Dominio parametrizado**: siempre `${BASE_DOMAIN}`; nunca `bandadau.com` ni
    `bandada.localhost` escritos a mano en configuración.
 5. **Sin secretos en git.** Solo `.env.example` y `deploy/.env.*.example` (marcadores de secreto). Producción: `deploy/render-env.sh` genera `.env.<nube>` y `.secrets`
@@ -54,7 +54,8 @@ verdad), `../bandadau-docs/docs/05-infraestructura/infraestructura.md` y
 | `mock/` | Gateway mock (Fastify + graphql) que imita `api.*` desde `bandadau-docs/contracts/`; `make mock*` |
 | `n8n/` | workflows JSON (fase 2) — ver `n8n/AGENTS.md` |
 | `ci/templates/` | plantillas de GitHub Actions por repo (copiar a `<repo>/.github/workflows/ci.yml`) |
-| `deploy/` | Despliegue multi-nube (ADR-0025): `docker-compose.{aws,azure,gcp}.yaml` (overrides del compose raíz), `.env.*.example`, `render-env.sh`, `deploy.sh`, `build-push.sh`, `dynamodb-create.sh`, `publish-static.sh`, `traefik/routers.prod.yml`, `nginx/`; ver `deploy/README.md` |
+| `terraform/aws/` | AWS como código (ADR-0026): EC2, IP elástica, DynamoDB, IAM, Route 53, ACM, CloudFront; `destroy.sh` borra todo y comprueba por etiqueta `Project=bandadau`; `make aws-plan/aws-apply/aws-destroy/aws-check` |
+| `deploy/` | Despliegue multi-nube (ADR-0025; `frontend.sh` compila y publica un frontend, ver `guia-despliegue-rapida.md`): `docker-compose.{aws,azure,gcp}.yaml` (overrides del compose raíz), `.env.*.example`, `render-env.sh`, `deploy.sh`, `build-push.sh`, `dynamodb-create.sh`, `publish-static.sh`, `traefik/routers.prod.yml`, `nginx/`; ver `deploy/README.md` |
 | *(pendiente, fases posteriores)* | `observability/` (dashboards), `load/` (k6), `ci/actions/` (el despliegue vigente es `deploy/`; `aws/` con CloudFormation quedó archivado en ADR-0025) |
 
 ## Comandos (desde `bandadau-infra/`)

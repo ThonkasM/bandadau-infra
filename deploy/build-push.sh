@@ -2,13 +2,14 @@
 # Construye las imágenes de los servicios y las publica en GHCR (un solo registro para AWS, Azure y GCP). ADR-0025.
 #   deploy/build-push.sh [servicio...]        sin argumentos: los 9 servicios
 # Variables:  GHCR_OWNER (obligatoria, minúsculas) · IMAGE_TAG (defecto: <fecha>-<sha corto de bandadau-backend>)
-#             PLATFORM (defecto linux/amd64: las VMs son x86-64; si compilas en un Mac con Apple Silicon se emula con QEMU y tarda)
+#             PLATFORM (defecto linux/amd64,linux/arm64: el EC2 t4g es ARM; Azure y GCP son x86-64. En un Mac con Apple
+#             Silicon la parte amd64 se emula con QEMU y tarda; PLATFORM=linux/arm64 si solo vas a desplegar en AWS)
 # Requisitos: `docker login ghcr.io -u <usuario>` con un token con permiso write:packages; `docker buildx`;
 #             bandadau-shared compilado (make setup) para los servicios Node. Los Dockerfile viven en bandadau-backend (no se tocan).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 : "${GHCR_OWNER:?define GHCR_OWNER (usuario u organización de GitHub, en minúsculas)}"
-PLATFORM="${PLATFORM:-linux/amd64}"
+PLATFORM="${PLATFORM:-linux/amd64,linux/arm64}"
 BACKEND=../bandadau-backend; SHARED=../bandadau-shared
 IMAGE_TAG="${IMAGE_TAG:-$(date +%Y%m%d)-$(git -C "$BACKEND" rev-parse --short HEAD 2>/dev/null || echo local)}"
 ALL=(identity-service social-service media-service events-service wallet-service ticketing-service notification-service insights-service admin-gateway)

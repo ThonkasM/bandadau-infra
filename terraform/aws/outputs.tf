@@ -1,6 +1,6 @@
 output "nameservers" {
   description = "Pon ESTOS 4 nameservers en Namecheap (Domain > Nameservers > Custom DNS)."
-  value       = aws_route53_zone.main.name_servers
+  value       = local.name_servers
 }
 
 output "elastic_ip" {

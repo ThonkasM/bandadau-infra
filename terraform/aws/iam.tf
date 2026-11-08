@@ -41,6 +41,13 @@ resource "aws_iam_role_policy" "ec2_dynamodb" {
   policy = data.aws_iam_policy_document.ec2_dynamodb.json
 }
 
+# Acceso de emergencia sin puertos: Session Manager (el agente SSM viene en la AMI de Ubuntu y sale por HTTPS).
+# Sirve para entrar si no hay llave de Tailscale y para comprobar el arranque con `aws ssm send-command`.
+resource "aws_iam_role_policy_attachment" "ec2_ssm" {
+  role       = aws_iam_role.ec2.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
 resource "aws_iam_instance_profile" "ec2" {
   name = "bandada-ec2"
   role = aws_iam_role.ec2.name

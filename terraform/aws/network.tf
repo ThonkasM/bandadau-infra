@@ -12,7 +12,7 @@ data "aws_subnets" "default" {
 
 # Rangos desde los que CloudFront contacta al origen (lista administrada por AWS).
 data "aws_ec2_managed_prefix_list" "cloudfront" {
-  name = "com.amazonaws.global.cloudfront.origin_facing"
+  name = "com.amazonaws.global.cloudfront.origin-facing"
 }
 
 resource "aws_security_group" "ec2" {

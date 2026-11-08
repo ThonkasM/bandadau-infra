@@ -1,11 +1,16 @@
-# Ubuntu 22.04 x86_64 (las imágenes de GHCR se construyen para linux/amd64)
+locals {
+  # t4g/m6g/c6g/m7g/c7g/r6g... son Graviton (arm64); el resto, x86_64
+  arch = can(regex("^[a-z]+[0-9]+g[a-z]*\\.", var.instance_type)) ? "arm64" : "amd64"
+}
+
+# Ubuntu 22.04 de la arquitectura del tipo de instancia
 data "aws_ami" "ubuntu" {
   most_recent = true
   owners      = ["099720109477"] # Canonical
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-${local.arch}-server-*"]
   }
   filter {
     name   = "virtualization-type"

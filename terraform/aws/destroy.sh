@@ -47,7 +47,8 @@ check() {
   echo "QUEDAN estos recursos (bórralos a mano en la consola o con la CLI):"
   echo "$list" | sed 's/^/  - /'
   # Costos que se escapan con más facilidad
-  echo "$list" | grep -q ':elastic-ip/' && echo "  ! Hay IP elástica sin liberar: se cobra aunque no tenga instancia."
+  echo "$list" | grep -q ':elastic-ip/' && echo "  ! Si ya borraste la pila: una IP elástica sin instancia se cobra; libérala."
+  echo "  (La API de etiquetas no lista usuarios ni roles de IAM ni registros de Route 53: terraform destroy los borra.)"
   return 1
 }
 

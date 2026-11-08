@@ -1,9 +1,22 @@
-# Zona pública de Route 53. Tras el primer apply hay que apuntar los nameservers de Namecheap a
-# los de `terraform output nameservers` (ver README, etapa 1).
+# Zona pública de Route 53: o la que ya existe (route53_zone_id) o una nueva. Los nameservers de Namecheap deben
+# apuntar a los de `terraform output nameservers` (ver README, etapa 1).
 resource "aws_route53_zone" "main" {
+  count = var.route53_zone_id == "" ? 1 : 0
+
   name          = var.domain
   comment       = "Bandada U (demo). Se borra con terraform destroy."
   force_destroy = true
+}
+
+# Zona ya existente (creada a mano): Terraform solo añade y quita registros en ella
+data "aws_route53_zone" "existing" {
+  count   = var.route53_zone_id == "" ? 0 : 1
+  zone_id = var.route53_zone_id
+}
+
+locals {
+  zone_id      = var.route53_zone_id == "" ? aws_route53_zone.main[0].zone_id : data.aws_route53_zone.existing[0].zone_id
+  name_servers = var.route53_zone_id == "" ? aws_route53_zone.main[0].name_servers : data.aws_route53_zone.existing[0].name_servers
 }
 
 # Certificado para la raíz y todos los subdominios (app, api, admin, mfe, s3, n8n, mail, rabbit, minio)
@@ -26,7 +39,7 @@ resource "aws_route53_record" "cert_validation" {
     }
   }
 
-  zone_id         = aws_route53_zone.main.zone_id
+  zone_id         = local.zone_id
   name            = each.value.name
   type            = each.value.type
   records         = [each.value.record]
@@ -55,7 +68,7 @@ locals {
 resource "aws_route53_record" "site" {
   for_each = local.alias_records
 
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = local.zone_id
   name    = each.value.name
   type    = each.value.type
 

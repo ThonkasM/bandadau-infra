@@ -16,9 +16,19 @@ variable "domain" {
 }
 
 variable "instance_type" {
-  description = "Tipo de EC2 (Postgres, Mongo, RabbitMQ, MinIO, n8n y 7 servicios). t3.large = 8 GB; t3.xlarge = 16 GB."
+  description = <<-EOT
+    Tipo de EC2 (Postgres, Mongo, RabbitMQ, MinIO, n8n y 7 servicios). Variante de bajo presupuesto: t4g.large
+    (ARM Graviton, 8 GB). Alternativas: t3.large (x86, 8 GB), t3.xlarge (x86, 16 GB). Los tipos t4g/m6g/c6g/m7g/c7g
+    usan AMI arm64 y exigen imágenes arm64 (deploy/build-push.sh ya publica amd64 + arm64).
+  EOT
   type        = string
-  default     = "t3.xlarge"
+  default     = "t4g.large"
+}
+
+variable "route53_zone_id" {
+  description = "ID de una zona pública de Route 53 YA existente para `domain` (p. ej. creada a mano). Si está vacío, Terraform crea la zona. Con valor, la zona NO se borra en destroy: solo los registros que crea Terraform."
+  type        = string
+  default     = ""
 }
 
 variable "root_volume_gb" {
