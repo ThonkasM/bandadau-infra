@@ -1,5 +1,6 @@
 # Enrutamiento de PRODUCCIÓN (ADR-0025). Mismo reparto de rutas que traefik/dynamic/routers.yml (catálogo §4), con:
-#   - TLS con Let's Encrypt (resolver `le`, definido por flags en deploy/docker-compose.aws.yaml)
+#   - SIN TLS en el EC2 (ADR-0026): CloudFront termina HTTPS y llega por el puerto 80 (entrypoint `web`);
+#     el grupo de seguridad solo admite la lista de CloudFront y el router `origin-verify` exige X-Origin-Verify
 #   - events y wallet como upstreams REMOTOS por Tailscale (Azure y GCP): TS_IP_AZURE y TS_IP_GCP
 #   - frontends servidos por el contenedor nginx `static` (sin host.docker.internal)
 #   - UIs de operación detrás de basic auth (ops-auth) salvo n8n (tiene su propio login)
@@ -12,12 +13,19 @@ http:
         usersFile: /etc/traefik/ops.htpasswd
 
   routers:
+    # ---- Solo CloudFront: cualquier petición sin la cabecera secreta recibe 403 (prioridad máxima) -------------
+    origin-verify:
+      rule: '!Header(`X-Origin-Verify`, `{{ env "ORIGIN_VERIFY" }}`)'
+      priority: 20000
+      entryPoints: [web]
+      middlewares: [deny-all]
+      service: noop@internal
+
     # ---- Bloqueos (prioridad máxima): /internal y service-token nunca salen a internet ---------------------------
     api-internal-block:
       rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && (PathPrefix(`/internal`) || PathPrefix(`/api/v1/auth/service-token`))'
       priority: 10000
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [deny-all]
       service: noop@internal
 
@@ -25,15 +33,13 @@ http:
     identity-auth:
       rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/api/v1/auth`)'
       priority: 200
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [api-auth-chain]
       service: identity
     identity:
       rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && (PathPrefix(`/api/v1/users`) || PathPrefix(`/api/v1/universities`) || PathPrefix(`/.well-known`))'
       priority: 100
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [api-chain]
       service: identity
 
@@ -41,50 +47,43 @@ http:
     social:
       rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && (PathPrefix(`/api/v1/profiles`) || PathPrefix(`/api/v1/posts`) || PathPrefix(`/api/v1/feed`) || PathPrefix(`/api/v1/groups`) || PathPrefix(`/api/v1/follows`) || PathPrefix(`/api/v1/reports`))'
       priority: 100
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [api-chain]
       service: social
     media:
       rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/api/v1/media`)'
       priority: 100
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [api-chain]
       service: media
     ticketing:
       rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/api/v1/tickets`)'
       priority: 100
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [api-chain]
       service: ticketing
     notification:
       rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && (PathPrefix(`/api/v1/notifications`) || PathPrefix(`/api/v1/devices`))'
       priority: 100
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [api-chain]
       service: notification
     insights:
       rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/api/v1/insights`)'
       priority: 100
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [api-chain]
       service: insights
     insights-mcp:
       rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/mcp`)'
       priority: 150
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [mcp-chain]
       service: insights
     graphql:
       rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/graphql`)'
       priority: 100
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [cors, ratelimit-default, secure-headers]
       service: admin-gateway
 
@@ -92,72 +91,61 @@ http:
     events:
       rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && (PathPrefix(`/api/v1/events`) || PathPrefix(`/api/v1/registrations`))'
       priority: 100
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [api-chain]
       service: events          # Azure
     wallet:
       rule: 'Host(`api.{{ env "BASE_DOMAIN" }}`) && PathPrefix(`/api/v1/wallet`)'
       priority: 100
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [api-chain]
       service: wallet          # GCP
 
     # ---- UIs de operación ----------------------------------------------------------------------------------------------------
     n8n:
       rule: 'Host(`n8n.{{ env "BASE_DOMAIN" }}`)'
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       service: n8n
     mailpit:
       rule: 'Host(`mail.{{ env "BASE_DOMAIN" }}`)'
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [ops-auth]
       service: mailpit
     rabbitmq:
       rule: 'Host(`rabbit.{{ env "BASE_DOMAIN" }}`)'
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [ops-auth]
       service: rabbitmq
     minio-console:
       rule: 'Host(`minio.{{ env "BASE_DOMAIN" }}`)'
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [ops-auth]
       service: minio-console
     # URLs prefirmadas de MinIO (media y audio): el cliente las abre con este host
     s3:
       rule: 'Host(`s3.{{ env "BASE_DOMAIN" }}`)'
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       service: minio
 
     # ---- Frontends estáticos (nginx `static`) -------------------------------------------------------------------------------
     landing:
       rule: 'Host(`{{ env "BASE_DOMAIN" }}`) || Host(`www.{{ env "BASE_DOMAIN" }}`)'
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [secure-headers, compress]
       service: static
     app:
       rule: 'Host(`app.{{ env "BASE_DOMAIN" }}`)'
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [secure-headers, compress]
       service: static
     admin-shell:
       rule: 'Host(`admin.{{ env "BASE_DOMAIN" }}`)'
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [secure-headers, compress]
       service: static
     mfe:
       rule: 'Host(`mfe.{{ env "BASE_DOMAIN" }}`)'
-      entryPoints: [websecure]
-      tls: { certResolver: le }
+      entryPoints: [web]
       middlewares: [cors, compress]
       service: static
 

@@ -5,7 +5,7 @@
 #       --profile infra --profile services up -d
 #   (deploy/deploy.sh aws lo hace por ti)
 #
-# Qué corre aquí: traefik (TLS Let's Encrypt), postgres, mongo, rabbitmq, minio, mailpit, n8n, nginx (estáticos) y los
+# Qué corre aquí: traefik (HTTP en el 80 detrás de CloudFront), postgres, mongo, rabbitmq, minio, mailpit, n8n, nginx (estáticos) y los
 # servicios identity, social, media, ticketing, notification (+worker, +relay), insights, admin-gateway.
 # Qué NO corre aquí: events-service (Azure), wallet-service/worker/relay (GCP), dynamodb-local (DynamoDB real), lgtm, ollama.
 #
@@ -50,24 +50,17 @@ services:
   # ---- Infraestructura ---------------------------------------------------------------------------------------
   traefik:
     ports: !override
-      - "80:80"
-      - "443:443"
-    # Configuración estática por flags (no por archivo): el correo de ACME sale de ACME_EMAIL
+      - "80:80"   # solo CloudFront llega aquí (grupo de seguridad); TLS lo termina CloudFront (ADR-0026)
+    # Configuración estática por flags (no por archivo)
     command: !override
       - --global.checkNewVersion=false
       - --global.sendAnonymousUsage=false
       - --entrypoints.web.address=:80
-      - --entrypoints.web.http.redirections.entryPoint.to=websecure
-      - --entrypoints.web.http.redirections.entryPoint.scheme=https
-      - --entrypoints.websecure.address=:443
       - --entrypoints.traefik.address=:8080
       - --ping=true
       - --ping.entrypoint=traefik
       - --providers.file.directory=/etc/traefik/dynamic
       - --providers.file.watch=true
-      - --certificatesresolvers.le.acme.email=${ACME_EMAIL}
-      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
-      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
       - --metrics.prometheus=true
       - --metrics.prometheus.entrypoint=traefik
       - --log.level=INFO
@@ -76,6 +69,7 @@ services:
       - --accesslog.filters.statuscodes=400-599
     environment:
       BASE_DOMAIN: ${BASE_DOMAIN}
+      ORIGIN_VERIFY: ${ORIGIN_VERIFY:?define ORIGIN_VERIFY (terraform output -raw origin_verify_secret)}
       LAN_HOST: ""
       TS_IP_AZURE: ${TS_IP_AZURE}
       TS_IP_GCP: ${TS_IP_GCP}
@@ -83,7 +77,6 @@ services:
       - ./traefik/dynamic/middlewares.yml:/etc/traefik/dynamic/middlewares.yml:ro
       - ./deploy/traefik/routers.prod.yml:/etc/traefik/dynamic/routers.yml:ro
       - ./deploy/traefik/ops.htpasswd:/etc/traefik/ops.htpasswd:ro
-      - traefik-letsencrypt:/letsencrypt
     extra_hosts: !reset []
 
   # Postgres y RabbitMQ se publican SOLO en la IP Tailscale del EC2: es lo único que ven Azure y GCP
@@ -125,7 +118,7 @@ services:
       BANDADA_APP_URL: https://app.${BASE_DOMAIN}
       BANDADA_EVENTS_INTERNAL_URL: http://${TS_IP_AZURE}:7004   # events vive en Azure
 
-  # Frontends estáticos (reemplaza S3 + CloudFront): landing, app, admin-shell y mfes
+  # Frontends estáticos (detrás de CloudFront): landing, app, admin-shell y mfes
   static:
     image: nginx:1.28-alpine
     profiles: [services]
@@ -232,5 +225,3 @@ services:
       EVENTS_SERVICE_URL: http://${TS_IP_AZURE}:7004
       WALLET_SERVICE_URL: http://${TS_IP_GCP}:7005
 
-volumes:
-  traefik-letsencrypt:

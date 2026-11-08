@@ -188,3 +188,20 @@ mock-stop: ## Detiene el gateway mock
 mock-test: ## Pruebas del mock (esquemas OpenAPI con ajv, SDL, GraphQL + WebSocket)
 	cd $(MOCK_DIR) && npm test
 .PHONY: mock mock-stop mock-test
+
+# ---- AWS (Terraform, ADR-0026): terraform/aws/ -------------------------------------------------------------------
+aws-plan: ## Vista previa de la infraestructura de AWS (no crea nada)
+	cd terraform/aws && terraform init -input=false >/dev/null && terraform plan -input=false
+
+aws-apply: ## Crea la infraestructura de AWS (ver terraform/aws/README.md: primero la etapa 1 de DNS)
+	cd terraform/aws && terraform init -input=false >/dev/null && terraform apply
+
+aws-destroy-preview: ## Muestra qué borraría aws-destroy (no borra)
+	terraform/aws/destroy.sh
+
+aws-destroy: ## BORRA toda la infraestructura de Bandada U en AWS (pide confirmación)
+	terraform/aws/destroy.sh --yes
+
+aws-check: ## Busca recursos de AWS etiquetados Project=bandadau (para confirmar que no queda nada)
+	terraform/aws/destroy.sh --check
+.PHONY: aws-plan aws-apply aws-destroy-preview aws-destroy aws-check

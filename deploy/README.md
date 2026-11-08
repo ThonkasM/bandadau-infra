@@ -1,4 +1,6 @@
-# deploy/ — despliegue multi-nube de Bandada U (ADR-0025)
+# deploy/ — despliegue multi-nube de Bandada U (ADR-0025 y ADR-0026)
+
+> **AWS ahora se crea con Terraform** (`../terraform/aws/`: EC2, IP elástica, DynamoDB, IAM, Route 53, ACM y CloudFront) y se borra con `make aws-destroy`. Aquí queda lo que corre *dentro* de las VMs.
 
 > **Estado: diseño sin ejecutar.** Los tres `docker-compose.*.yaml` se validan con `docker compose config`; nada se ha desplegado
 > todavía en AWS, Azure ni GCP. Guía paso a paso (cuentas, VMs, Tailscale, DynamoDB, demo): `bandadau-docs/docs/05-infraestructura/guia-despliegue.md`.
@@ -13,7 +15,7 @@ y Traefik (EC2) les reenvía el tráfico por la misma red. Cada nube usa el **mi
 
 | Archivo | Para qué |
 |---|---|
-| `docker-compose.aws.yaml` | Override del EC2: imágenes de GHCR, DynamoDB real, Traefik con Let's Encrypt, nginx de estáticos, puertos solo en la IP Tailscale |
+| `docker-compose.aws.yaml` | Override del EC2: imágenes de GHCR, DynamoDB real, Traefik en HTTP:80 detrás de CloudFront (exige `X-Origin-Verify`), nginx de estáticos, puertos solo en la IP Tailscale |
 | `docker-compose.azure.yaml` | Override de la VM de Azure: solo `events-service` |
 | `docker-compose.gcp.yaml` | Override de la VM de GCP: `wallet-service`, `wallet-worker`, `wallet-relay` |
 | `.env.aws.example` · `.env.azure.example` · `.env.gcp.example` | Variables de cada nube, con marcadores de secreto |
@@ -47,5 +49,4 @@ deploy/publish-static.sh mfe ../bandadau-admin/mfe-moderation/dist moderation   
 
 ## Qué NO está verificado
 
-Ejecución real de los contenedores (el daemon de Docker estaba apagado al escribirlo), el enrutamiento Docker → Tailscale, los certificados de
-Let's Encrypt, el rollback de `deploy.sh`, el tiempo de construir para `linux/amd64` desde un Mac con Apple Silicon y la tag `nginx:1.28-alpine`.
+Ejecución real de los contenedores (el daemon de Docker estaba apagado al escribirlo), el enrutamiento Docker → Tailscale, el certificado de ACM y el origen de CloudFront, el rollback de `deploy.sh`, el tiempo de construir para `linux/amd64` desde un Mac con Apple Silicon y la tag `nginx:1.28-alpine`.

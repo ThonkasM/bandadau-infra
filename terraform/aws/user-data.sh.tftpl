@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Arranque del EC2 de Bandada U (cloud-init). Deja el host listo para `deploy/deploy.sh aws`:
+# Docker + Compose, Tailscale (SSH sin puerto 22), /opt/bandada y el repo de infraestructura.
+# Registro: /var/log/bandada-bootstrap.log
+set -euxo pipefail
+exec > >(tee -a /var/log/bandada-bootstrap.log) 2>&1
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y ca-certificates curl gnupg git jq unzip
+
+# Docker (repositorio oficial: Compose >= 2.24 exigido por los overrides de deploy/)
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" > /etc/apt/sources.list.d/docker.list
+apt-get update -y
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+usermod -aG docker ubuntu
+
+# Tailscale (el host debe tenerlo activo ANTES que Docker publique puertos en la IP 100.x)
+curl -fsSL https://tailscale.com/install.sh | sh
+mkdir -p /etc/systemd/system/docker.service.d
+printf '[Unit]\nAfter=tailscaled.service\nWants=tailscaled.service\n' > /etc/systemd/system/docker.service.d/10-tailscale.conf
+systemctl daemon-reload
+%{ if tailscale_auth_key != "" ~}
+tailscale up --ssh --authkey '${tailscale_auth_key}' --hostname bandada-aws
+%{ else ~}
+echo "Sin llave de Tailscale: entra por la consola de EC2 y ejecuta: sudo tailscale up --ssh --hostname bandada-aws"
+%{ endif ~}
+
+# Carpeta de trabajo y repositorio de infraestructura (deploy.sh hace git pull aquí)
+mkdir -p /opt/bandada/sites
+chown -R ubuntu:ubuntu /opt/bandada
+sudo -u ubuntu git clone '${infra_repo_url}' /opt/bandada/bandadau-infra || echo "AVISO: no se pudo clonar ${infra_repo_url} (repo privado?). Clónalo a mano con credenciales."
+
+echo "bootstrap terminado"
