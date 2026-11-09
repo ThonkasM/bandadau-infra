@@ -74,6 +74,13 @@ data "aws_iam_policy_document" "wallet" {
       values   = ["wallet-service#*"]
     }
   }
+
+  # El healthcheck de wallet-service hace DescribeTable; esa acción no admite la condición LeadingKeys.
+  statement {
+    sid       = "WalletHealthDescribe"
+    actions   = ["dynamodb:DescribeTable"]
+    resources = [aws_dynamodb_table.this["idempotency"].arn]
+  }
 }
 
 resource "aws_iam_user_policy" "wallet" {

@@ -10,7 +10,7 @@
 # Esta VM no abre puertos públicos: wallet publica 7005 únicamente en su IP Tailscale; Traefik (AWS) la usa de upstream.
 # =============================================================================
 x-wallet-prod: &wallet-prod
-  APP_ENV: production
+  APP_ENV: ${WALLET_APP_ENV:-production}   # demo: staging habilita el pago simulado (el validador lo prohíbe en production)
   OTEL_SDK_DISABLED: "true"
   JWT_ISSUER: https://api.${BASE_DOMAIN}
   JWKS_URL: http://${TS_IP_AWS}:7001/.well-known/jwks.json
