@@ -203,7 +203,7 @@ export async function seedExtra({ step, ctx, groupId }) {
     await step(`Inscripción de ${user}: ${title}`, async () => {
       const ev = all.find((x) => x.title === title) ?? (await listAllEvents(T(user))).find((x) => x.title === title);
       if (!ev) throw new Error(`evento "${title}" no encontrado`);
-      const r = await request('POST', `${cfg.api}/events/${ev.id}/registrations`, { token: T(user), idempotencyKey: stableUuid(`seed:reg:${user}:${title}`) });
+      const r = await request('POST', `${cfg.api}/events/${ev.id}/registrations`, { token: T(user), idempotencyKey: stableUuid(`seed:reg:${user}:${title}${process.env.SEED_KEY_SALT ?? ''}`) });
       if (r.status === 409) return 'ya inscrito';
       if (!r.ok) throw new Error(`register: ${problem(r)}`);
       const id = r.json.id ?? r.json.registrationId;

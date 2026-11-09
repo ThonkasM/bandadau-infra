@@ -140,7 +140,7 @@ const REGISTRATIONS__ = [
 ];
 
 // Recargas de demo: [usuario, paquete]
-const TOPUPS__ = [['marco', 'CREDITS_50'], ['sofia', 'CREDITS_50'], ['diego', 'CREDITS_100'], ['camila', 'CREDITS_20']];
+const TOPUPS__ = [['lucia', 'CREDITS_100'], ['marco', 'CREDITS_50'], ['sofia', 'CREDITS_50'], ['diego', 'CREDITS_100'], ['camila', 'CREDITS_20']];
 
 export const UNIVERSITIES = UAGRM_PROFILE ? UNIVERSITIES__.filter((u) => u.code === 'UAGRM') : UNIVERSITIES__;
 export const USERS = prof(USERS__);
