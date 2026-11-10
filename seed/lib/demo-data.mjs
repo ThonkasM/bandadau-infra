@@ -30,6 +30,13 @@ const USERS__ = [
   { key: 'jorge', email: 'jorge.carvajal@uagrm.edu.bo', roles: ['STUDENT'], university: 'UAGRM' },
   { key: 'cesar', email: 'cesar.caballero@uagrm.edu.bo', roles: ['STUDENT'], university: 'UAGRM' },
   { key: 'diegoy', email: 'diego.yebara@uagrm.edu.bo', roles: ['STUDENT'], university: 'UAGRM' },
+  // Estudiantes de la semana (HISTORY_SET=week): dan movimiento reciente a reportes y consultas.
+  { key: 'ana', email: 'ana.rivero@uagrm.edu.bo', roles: ['STUDENT'], university: 'UAGRM' },
+  { key: 'bruno', email: 'bruno.salvatierra@uagrm.edu.bo', roles: ['STUDENT'], university: 'UAGRM' },
+  { key: 'carla', email: 'carla.justiniano@uagrm.edu.bo', roles: ['STUDENT'], university: 'UAGRM' },
+  { key: 'david', email: 'david.cuellar@uagrm.edu.bo', roles: ['STUDENT'], university: 'UAGRM' },
+  { key: 'elena', email: 'elena.suarez@uagrm.edu.bo', roles: ['STUDENT'], university: 'UAGRM' },
+  { key: 'fabio', email: 'fabio.roca@uagrm.edu.bo', roles: ['STUDENT'], university: 'UAGRM' },
 ];
 
 const GROUP__ = { name: 'Ingeniería de Software II', subject: 'Ingeniería de Software', privacy: 'PUBLIC' };
@@ -60,6 +67,12 @@ const PROFILES__ = {
   jorge: { displayName: 'Jorge Carvajal' },
   cesar: { displayName: 'Cesar Caballero' },
   diegoy: { displayName: 'Diego Yebara' },
+  ana: { displayName: 'Ana Rivero', career: 'Ingeniería Informática', semester: 5, bio: 'Frontend, accesibilidad y café.', interests: ['diseño', 'web'] },
+  bruno: { displayName: 'Bruno Salvatierra', career: 'Ingeniería de Sistemas', semester: 3, bio: 'Aprendiendo backend y ajedrez.', interests: ['ajedrez', 'backend'] },
+  carla: { displayName: 'Carla Justiniano', career: 'Administración de Empresas', semester: 6, bio: 'Emprendimiento y proyectos con impacto.', interests: ['emprendimiento', 'marketing'] },
+  david: { displayName: 'David Cuéllar', career: 'Ingeniería Informática', semester: 7, bio: 'Bases de datos y datos abiertos.', interests: ['sql', 'datos'] },
+  elena: { displayName: 'Elena Suárez', career: 'Diseño Gráfico', semester: 4, bio: 'Interfaces que se entienden solas.', interests: ['ui', 'ilustración'] },
+  fabio: { displayName: 'Fabio Roca', career: 'Ingeniería de Sistemas', semester: 8, bio: 'Ciberseguridad y CTFs.', interests: ['seguridad', 'ctf'] },
   camila: { displayName: 'Camila Vargas', career: 'Medicina', semester: 3, bio: 'Anatomía y buenos hábitos de estudio.', interests: ['salud', 'running'] },
 };
 

@@ -5,9 +5,10 @@
 import { cfg } from './lib/env.mjs';
 import { request, poll, problem } from './lib/http.mjs';
 import { stableUuid } from './lib/ids.mjs';
-import { login } from './lib/identity.mjs';
+import { ensureUniversity, ensureUser, login } from './lib/identity.mjs';
 import { createReport } from './lib/report.mjs';
-import { email, HISTORY_EVENTS, HISTORY_TOPUP_USERS, regKey, topupKey } from './lib/history-data.mjs';
+import { PROFILES, UNIVERSITIES, USERS } from './lib/demo-data.mjs';
+import { email, HISTORY_EVENTS, HISTORY_NEW_USERS, HISTORY_TOPUPS, regKey, topupKey } from './lib/history-data.mjs';
 
 const report = createReport('Historial de demo (SAGA y asistencia)');
 const { step } = report;
@@ -41,18 +42,34 @@ const finalState = async (t, id) => poll(async () => {
 
 console.log(`API ${cfg.api}\n`);
 
+// 0) Usuarios nuevos del conjunto (HISTORY_SET=week): registro + código de Mailpit + perfil (necesita SEED_MAILPIT_URL).
+for (const key of HISTORY_NEW_USERS) {
+  await step(`Usuario nuevo ${key}`, async () => {
+    const u = USERS.find((x) => x.key === key);
+    const def = UNIVERSITIES.find((x) => x.code === (u.university ?? 'UAGRM'));
+    const { university } = await ensureUniversity(def);
+    const { tokens: t, created } = await ensureUser({ email: u.email, password: cfg.password, universityId: university.id });
+    tokens[key] = t.accessToken;
+    let r;
+    await poll(async () => {
+      r = await request('PATCH', `${cfg.api}/profiles/me`, { token: tokens[key], body: PROFILES[key] });
+      return r.status !== 404;
+    }, { timeoutMs: 30000 });
+    if (!r.ok) throw new Error(`updateProfile: ${problem(r)}`);
+    return created ? 'creado' : 'ya existía';
+  });
+}
+
 // 1) Recargas (el simulador de pagos del wallet debe estar activo)
-for (const user of HISTORY_TOPUP_USERS) {
-  for (const n of [1, 2]) {
-    await step(`Recarga ${n}/2 de ${user}: CREDITS_100`, async () => {
-      const t = await token(user);
-      const top = await request('POST', `${cfg.api}/wallet/topups`, { token: t, idempotencyKey: stableUuid(topupKey(user, n)), body: { package: 'CREDITS_100' } });
-      if (!top.ok) throw new Error(`createTopUp: ${problem(top)}`);
-      const pay = await request('POST', `${cfg.api}/wallet/topups/${top.json.topUpId}/simulate-payment`, { token: t, body: { outcome: 'PAID' } });
-      if (!pay.ok && pay.status !== 409) throw new Error(`simulate-payment: ${problem(pay)}`);
-      return `recarga ${top.json.topUpId}`;
-    });
-  }
+for (const { user, n } of HISTORY_TOPUPS) {
+  await step(`Recarga ${n} de ${user}: CREDITS_100`, async () => {
+    const t = await token(user);
+    const top = await request('POST', `${cfg.api}/wallet/topups`, { token: t, idempotencyKey: stableUuid(topupKey(user, n)), body: { package: 'CREDITS_100' } });
+    if (!top.ok) throw new Error(`createTopUp: ${problem(top)}`);
+    const pay = await request('POST', `${cfg.api}/wallet/topups/${top.json.topUpId}/simulate-payment`, { token: t, body: { outcome: 'PAID' } });
+    if (!pay.ok && pay.status !== 409) throw new Error(`simulate-payment: ${problem(pay)}`);
+    return `recarga ${top.json.topUpId}`;
+  });
 }
 await new Promise((r) => setTimeout(r, 4000)); // el saldo llega por mensajería
 

@@ -7,7 +7,7 @@
 //   HISTORY_DYNAMO "aws"  (defecto) | "none" para omitir tickets; TICKETING_TABLE (defecto bandada-ticketing)
 //   --dry          imprime el SQL y no escribe nada
 import { spawnSync } from 'node:child_process';
-import { HISTORY_EVENTS, HISTORY_TOPUP_USERS, topupKey } from './lib/history-data.mjs';
+import { HISTORY_EVENTS, HISTORY_TOPUPS, topupKey } from './lib/history-data.mjs';
 import { stableUuid } from './lib/ids.mjs';
 
 const DRY = process.argv.includes('--dry');
@@ -28,17 +28,17 @@ const startOf = (ago) => { const d = new Date(); d.setUTCHours(22, 0, 0, 0); ret
 // ---- events_db -------------------------------------------------------------------------------------------------------
 const eventsSql = `
 BEGIN;
-CREATE TEMP TABLE h(title text, ago int) ON COMMIT DROP;
-INSERT INTO h VALUES ${past.map((e) => `(${q(e.title)}, ${e.daysAgo})`).join(', ')};
+CREATE TEMP TABLE h(title text, ago int, lead_min int, step_min int) ON COMMIT DROP;
+INSERT INTO h VALUES ${past.map((e) => `(${q(e.title)}, ${e.daysAgo}, ${e.regLead ? e.regLead * 1440 : 4320}, ${e.regLead ? Math.floor((e.regLead * 1440) / (e.regs.length + 1)) : 420})`).join(', ')};
 CREATE TEMP TABLE e ON COMMIT DROP AS
-  SELECT ev.id, (date_trunc('day', now()) - make_interval(days => h.ago) + interval '22 hours') AS s
+  SELECT ev.id, h.lead_min, h.step_min, (date_trunc('day', now()) - make_interval(days => h.ago) + interval '22 hours') AS s
   FROM events ev JOIN h ON h.title = ev.title;
 UPDATE events ev SET starts_at = e.s, ends_at = e.s + interval '3 hours', created_at = e.s - interval '14 days',
   published_at = e.s - interval '13 days', updated_at = e.s + interval '3 hours', status = 'FINISHED'
   FROM e WHERE ev.id = e.id;
 CREATE TEMP TABLE r ON COMMIT DROP AS
   SELECT rg.id, e.s,
-    e.s - interval '3 days' + row_number() OVER (PARTITION BY rg.event_id ORDER BY rg.created_at, rg.id) * interval '7 hours'
+    e.s - make_interval(mins => e.lead_min) + row_number() OVER (PARTITION BY rg.event_id ORDER BY rg.created_at, rg.id) * make_interval(mins => e.step_min)
       + (abs(hashtext(rg.id::text)) % 50) * interval '1 minute' AS nc
   FROM registrations rg JOIN e ON e.id = rg.event_id;
 UPDATE registrations rg SET created_at = r.nc,
@@ -63,18 +63,16 @@ const regs = JSON.parse(DRY ? '[]' : psql('events_db', eventsSql).trim().split('
 console.log(`events_db: ${past.length} eventos pasados, ${regs.length} inscripciones movidas`);
 
 // ---- wallet_db -------------------------------------------------------------------------------------------------------
-const first = startOf(past[0].daysAgo);
-const fourth = startOf((past[3] ?? past.at(-1)).daysAgo);
-const topups = HISTORY_TOPUP_USERS.flatMap((u, i) => [1, 2].map((n) => ({
-  key: stableUuid(topupKey(u, n)),
-  at: new Date((n === 1 ? first.getTime() - 4 * 86400000 : fourth.getTime() - 4 * 86400000) + i * 13 * 60000).toISOString(),
-})));
+const topups = HISTORY_TOPUPS.filter((t) => t.ago > 0).map((t, i) => ({
+  key: stableUuid(topupKey(t.user, t.n)),
+  at: new Date(startOf(t.ago).getTime() + i * 13 * 60000).toISOString(),
+}));
 const walletSql = `
 BEGIN;
 CREATE TEMP TABLE rr(id uuid, created timestamptz, cancelled timestamptz) ON COMMIT DROP;
 ${regs.length ? `INSERT INTO rr VALUES ${regs.map((r) => `('${r.id}', '${r.createdAt}', ${r.cancelledAt ? `'${r.cancelledAt}'` : 'NULL'})`).join(', ')};` : ''}
 CREATE TEMP TABLE tk(key uuid, at timestamptz) ON COMMIT DROP;
-INSERT INTO tk VALUES ${topups.map((t) => `('${t.key}', '${t.at}')`).join(', ')};
+${topups.length ? `INSERT INTO tk VALUES ${topups.map((t) => `('${t.key}', '${t.at}')`).join(', ')};` : ''}
 UPDATE ledger_entries l SET created_at = CASE l.type WHEN 'DEBIT' THEN rr.created + interval '2 seconds'
   ELSE coalesce(rr.cancelled, rr.created) + interval '3 seconds' END
   FROM rr WHERE l.registration_id = rr.id;
