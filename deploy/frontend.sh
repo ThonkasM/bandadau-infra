@@ -38,9 +38,9 @@ build_app() {
   llm="$(sed -n 's/^EXPO_PUBLIC_LOCAL_LLM_MODEL_URL=//p' ../bandadau-frontend/.env.example | sed "s#http://s3.bandada.localhost#https://s3.$D#")"
   nsfw="$(sed -n 's/^EXPO_PUBLIC_NSFW_MODEL_URL=//p' ../bandadau-frontend/.env.example | sed "s#http://s3.bandada.localhost#https://s3.$D#")"
   ( cd ../bandadau-frontend
-    run env EXPO_PUBLIC_API_URL="https://api.$D" EXPO_PUBLIC_APP_URL="https://app.$D" EXPO_PUBLIC_ADMIN_URL="https://admin.$D" \
+    run env EXPO_NO_DOTENV=1 EXPO_PUBLIC_API_URL="https://api.$D" EXPO_PUBLIC_APP_URL="https://app.$D" EXPO_PUBLIC_ADMIN_URL="https://admin.$D" \
       EXPO_PUBLIC_BASE_DOMAIN="$D" EXPO_PUBLIC_DEFAULT_LOCALE=es EXPO_PUBLIC_USE_MOCKS=false \
-      EXPO_PUBLIC_LOCAL_LLM_MODEL_URL="$llm" EXPO_PUBLIC_NSFW_MODEL_URL="$nsfw" EXPO_PUBLIC_VAPID_PUBLIC_KEY="$vapid" corepack pnpm build:web )
+      EXPO_PUBLIC_LOCAL_LLM_MODEL_URL="$llm" EXPO_PUBLIC_NSFW_MODEL_URL="$nsfw" EXPO_PUBLIC_VAPID_PUBLIC_KEY="$vapid" corepack pnpm build:web --clear )   # --clear y EXPO_NO_DOTENV: ni la caché de Metro ni el .env local (IP LAN) pueden contaminar el build de producción
   run "$ROOT/deploy/publish-static.sh" app ../bandadau-frontend/dist
 }
 
