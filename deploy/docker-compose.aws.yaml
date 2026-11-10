@@ -45,7 +45,8 @@ services:
   wallet-worker:  { profiles: !override [disabled] }
   wallet-relay:   { profiles: !override [disabled] }
   lgtm:           { profiles: !override [disabled] }
-  ollama:         { profiles: !override [disabled] }
+  # IA 100 % local (sin servicios públicos): Ollama corre en este host (perfil services). Modelo: `docker compose exec ollama ollama pull $OLLAMA_MODEL`.
+  ollama:         { profiles: !override [services], mem_limit: 3g }
 
   # ---- Infraestructura ---------------------------------------------------------------------------------------
   traefik:
@@ -148,6 +149,7 @@ services:
       APP_BASE_URL: https://app.${BASE_DOMAIN}
       ADMIN_BASE_URL: https://admin.${BASE_DOMAIN}
       MAIL_FROM: no-reply@${BASE_DOMAIN}
+    mem_limit: 768m   # 512m lo mataba el OOM-killer (JVM + Ollama en el mismo host)
 
   social-service:
     image: ghcr.io/${GHCR_OWNER}/bandada-social-service:${TAG_SOCIAL_SERVICE:-${IMAGE_TAG}}
@@ -166,7 +168,12 @@ services:
       - "${TS_IP_AWS}:7003:7003"   # events-service (Azure) valida portadas contra media
     environment:
       <<: *prod-env
-      S3_PUBLIC_ENDPOINT: https://s3.${BASE_DOMAIN}
+      # Almacenamiento: S3 REAL de AWS (buckets y llave de terraform/aws/s3.tf), no MinIO
+      S3_ENDPOINT: https://s3.us-east-1.amazonaws.com
+      S3_PUBLIC_ENDPOINT: https://s3.us-east-1.amazonaws.com
+      S3_ACCESS_KEY_ID: ${AWS_S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${AWS_S3_SECRET_ACCESS_KEY}
+      S3_FORCE_PATH_STYLE: "false"
     depends_on: !override
       mongo-init: { condition: service_completed_successfully }
       minio-init: { condition: service_completed_successfully }
@@ -188,7 +195,11 @@ services:
     <<: *no-ports
     environment:
       <<: *prod-env
-      S3_PUBLIC_ENDPOINT: https://s3.${BASE_DOMAIN}
+      # Almacenamiento: S3 REAL de AWS (buckets y llave de terraform/aws/s3.tf), no MinIO
+      S3_ENDPOINT: https://s3.us-east-1.amazonaws.com
+      S3_PUBLIC_ENDPOINT: https://s3.us-east-1.amazonaws.com
+      S3_ACCESS_KEY_ID: ${AWS_S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${AWS_S3_SECRET_ACCESS_KEY}
       EVENTS_SERVICE_URL: http://${TS_IP_AZURE}:7004
       WALLET_SERVICE_URL: http://${TS_IP_GCP}:7005
       MCP_ALLOWED_ORIGINS: https://api.${BASE_DOMAIN},https://admin.${BASE_DOMAIN}

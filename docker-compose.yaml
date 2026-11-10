@@ -706,7 +706,7 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
       OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS:-120000}
       TTS_PROVIDER: ${TTS_PROVIDER:-none}
-      PIPER_URL: http://piper:5002
+      PIPER_URL: http://piper:5002/synthesize
       PROMETHEUS_URL: ${PROMETHEUS_URL:-}
       AGENT_MAX_STEPS: ${AGENT_MAX_STEPS:-8}
       AGENT_MAX_TOKENS: ${AGENT_MAX_TOKENS:-20000}
@@ -866,6 +866,20 @@ services:
   #   docker compose --profile llm up -d ollama   |   docker compose --profile llm stop ollama
   # El modelo se baja una vez:  docker compose exec ollama ollama pull ${OLLAMA_MODEL}
   # ===========================================================================
+  # Voz local para los reportes (TTS_PROVIDER=piper). Se construye en el host: `docker compose --profile tts up -d --build piper`.
+  piper:
+    build: ./piper
+    image: bandada/piper:local
+    profiles: [tts]
+    restart: unless-stopped
+    networks: [bandada]
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:5002/info', timeout=4)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
   ollama:
     image: ollama/ollama:0.40.5
     profiles: [llm]
