@@ -33,6 +33,14 @@ data "aws_iam_policy_document" "ec2_dynamodb" {
     ]
     resources = local.table_and_index_arns
   }
+
+  # Lecturas administrativas de ticketing (estadísticas y reporte de asistencia): un Scan acotado y de baja frecuencia,
+  # solo sobre la tabla de tickets.
+  statement {
+    sid       = "DynamoDBTicketingScan"
+    actions   = ["dynamodb:Scan"]
+    resources = [aws_dynamodb_table.this["ticketing"].arn]
+  }
 }
 
 resource "aws_iam_role_policy" "ec2_dynamodb" {
