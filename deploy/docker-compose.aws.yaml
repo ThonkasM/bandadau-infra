@@ -235,4 +235,5 @@ services:
       <<: *prod-env
       EVENTS_SERVICE_URL: http://${TS_IP_AZURE}:7004
       WALLET_SERVICE_URL: http://${TS_IP_GCP}:7005
+      APP_URL: https://app.${BASE_DOMAIN}   # deepLink de los anuncios push
 

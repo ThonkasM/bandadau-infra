@@ -813,6 +813,7 @@ services:
       WALLET_SERVICE_URL: http://wallet-service:7005
       TICKETING_SERVICE_URL: http://ticketing-service:7006
       INSIGHTS_SERVICE_URL: http://insights-service:7008
+      APP_URL: ${APP_URL:-http://app.bandada.localhost}
       NOTIFICATION_SERVICE_URL: http://notification-service:7007
       RABBITMQ_MANAGEMENT_URL: http://rabbitmq:15672
       RABBITMQ_MANAGEMENT_USER: ${RABBITMQ_MONITOR_USER:-monitor}
