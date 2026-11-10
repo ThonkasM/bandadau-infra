@@ -7,7 +7,11 @@ export const ticketingHandlers = {
   async listMyTickets(c) {
     let list = [...db.tickets.values()].filter((t) => t.userId === c.user.id);
     if (c.query.status) list = list.filter((t) => t.status === c.query.status);
-    const p = c.page(list, (t) => tsKey(t.issuedAt, t.id));
+    // `eventDate` (default): by event start ascending (closest first). `recent`: by acquisition descending.
+    const p =
+      c.query.sort === 'recent'
+        ? c.page(list, (t) => tsKey(t.issuedAt, t.id), 'desc')
+        : c.page(list, (t) => tsKey(db.events.get(t.eventId)?.startsAt ?? t.issuedAt, t.id), 'asc');
     return { items: p.items.map(toTicket), nextCursor: p.nextCursor };
   },
 
