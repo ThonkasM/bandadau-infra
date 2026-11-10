@@ -33,13 +33,14 @@ build_landing() {
 
 build_app() {
   echo "== app"
-  local llm nsfw
+  local llm nsfw vapid
+  vapid="$(sed -n 's/^VAPID_PUBLIC_KEY=//p' "$ROOT/deploy/.env.aws" 2>/dev/null | tail -1)"   # clave PÚBLICA de Web Push (la privada nunca sale de .env.aws)
   llm="$(sed -n 's/^EXPO_PUBLIC_LOCAL_LLM_MODEL_URL=//p' ../bandadau-frontend/.env.example | sed "s#http://s3.bandada.localhost#https://s3.$D#")"
   nsfw="$(sed -n 's/^EXPO_PUBLIC_NSFW_MODEL_URL=//p' ../bandadau-frontend/.env.example | sed "s#http://s3.bandada.localhost#https://s3.$D#")"
   ( cd ../bandadau-frontend
     run env EXPO_PUBLIC_API_URL="https://api.$D" EXPO_PUBLIC_APP_URL="https://app.$D" EXPO_PUBLIC_ADMIN_URL="https://admin.$D" \
       EXPO_PUBLIC_BASE_DOMAIN="$D" EXPO_PUBLIC_DEFAULT_LOCALE=es EXPO_PUBLIC_USE_MOCKS=false \
-      EXPO_PUBLIC_LOCAL_LLM_MODEL_URL="$llm" EXPO_PUBLIC_NSFW_MODEL_URL="$nsfw" corepack pnpm build:web )
+      EXPO_PUBLIC_LOCAL_LLM_MODEL_URL="$llm" EXPO_PUBLIC_NSFW_MODEL_URL="$nsfw" EXPO_PUBLIC_VAPID_PUBLIC_KEY="$vapid" corepack pnpm build:web )
   run "$ROOT/deploy/publish-static.sh" app ../bandadau-frontend/dist
 }
 
